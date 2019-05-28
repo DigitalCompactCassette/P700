@@ -25,7 +25,7 @@
 // <id> rtc_1khz_selection
 #ifndef CONF_RTCCTRL_1KHZ
 
-#define CONF_RTCCTRL_1KHZ 1
+#define CONF_RTCCTRL_1KHZ 0
 
 #endif
 
@@ -122,7 +122,7 @@
 // <i> Indicates whether the connections between the I/O pads and the external clock or crystal oscillator is enabled or not
 // <id> xosc32k_arch_xtalen
 #ifndef CONF_XOSC32K_XTALEN
-#define CONF_XOSC32K_XTALEN 0
+#define CONF_XOSC32K_XTALEN 1
 #endif
 
 // </h>

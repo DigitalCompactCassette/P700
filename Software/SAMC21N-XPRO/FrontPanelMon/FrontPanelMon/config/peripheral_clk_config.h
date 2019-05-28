@@ -73,7 +73,7 @@
  * \brief SERCOM4's Slow Clock frequency
  */
 #ifndef CONF_GCLK_SERCOM4_SLOW_FREQUENCY
-#define CONF_GCLK_SERCOM4_SLOW_FREQUENCY 32768
+#define CONF_GCLK_SERCOM4_SLOW_FREQUENCY 400000
 #endif
 
 // <<< end of configuration section >>>

@@ -98,7 +98,7 @@
 // <i> This defines the clock source for generic clock generator 1
 // <id> gclk_gen_1_oscillator
 #ifndef CONF_GCLK_GEN_1_SOURCE
-#define CONF_GCLK_GEN_1_SOURCE GCLK_GENCTRL_SRC_XOSC32K
+#define CONF_GCLK_GEN_1_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -173,7 +173,7 @@
 // <i> This defines the clock source for generic clock generator 2
 // <id> gclk_gen_2_oscillator
 #ifndef CONF_GCLK_GEN_2_SOURCE
-#define CONF_GCLK_GEN_2_SOURCE GCLK_GENCTRL_SRC_OSC32K
+#define CONF_GCLK_GEN_2_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -248,7 +248,7 @@
 // <i> This defines the clock source for generic clock generator 3
 // <id> gclk_gen_3_oscillator
 #ifndef CONF_GCLK_GEN_3_SOURCE
-#define CONF_GCLK_GEN_3_SOURCE GCLK_GENCTRL_SRC_OSCULP32K
+#define CONF_GCLK_GEN_3_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -323,7 +323,7 @@
 // <i> This defines the clock source for generic clock generator 4
 // <id> gclk_gen_4_oscillator
 #ifndef CONF_GCLK_GEN_4_SOURCE
-#define CONF_GCLK_GEN_4_SOURCE GCLK_GENCTRL_SRC_OSCULP32K
+#define CONF_GCLK_GEN_4_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -398,7 +398,7 @@
 // <i> This defines the clock source for generic clock generator 5
 // <id> gclk_gen_5_oscillator
 #ifndef CONF_GCLK_GEN_5_SOURCE
-#define CONF_GCLK_GEN_5_SOURCE GCLK_GENCTRL_SRC_OSC32K
+#define CONF_GCLK_GEN_5_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -473,7 +473,7 @@
 // <i> This defines the clock source for generic clock generator 6
 // <id> gclk_gen_6_oscillator
 #ifndef CONF_GCLK_GEN_6_SOURCE
-#define CONF_GCLK_GEN_6_SOURCE GCLK_GENCTRL_SRC_OSC32K
+#define CONF_GCLK_GEN_6_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby
@@ -548,7 +548,7 @@
 // <i> This defines the clock source for generic clock generator 7
 // <id> gclk_gen_7_oscillator
 #ifndef CONF_GCLK_GEN_7_SOURCE
-#define CONF_GCLK_GEN_7_SOURCE GCLK_GENCTRL_SRC_OSC32K
+#define CONF_GCLK_GEN_7_SOURCE GCLK_GENCTRL_SRC_XOSC
 #endif
 
 // <q> Run in Standby

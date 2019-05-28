@@ -16,9 +16,9 @@ struct usart_sync_descriptor EDBG_COM;
 void EDBG_COM_PORT_init(void)
 {
 
-	gpio_set_pin_function(EDBG_COM_TX, PINMUX_PB10D_SERCOM4_PAD2);
+	gpio_set_pin_function(PB10, PINMUX_PB10D_SERCOM4_PAD2);
 
-	gpio_set_pin_function(EDBG_COM_RX, PINMUX_PB11D_SERCOM4_PAD3);
+	gpio_set_pin_function(PB11, PINMUX_PB11D_SERCOM4_PAD3);
 }
 
 void EDBG_COM_CLOCK_init(void)
@@ -47,7 +47,7 @@ void system_init(void)
 	                   // <id> pad_initial_level
 	                   // <false"> Low
 	                   // <true"> High
-	                   true);
+	                   false);
 
 	// Set pin direction to output
 	gpio_set_pin_direction(LED0, GPIO_DIRECTION_OUT);

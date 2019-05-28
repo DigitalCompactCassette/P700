@@ -136,8 +136,7 @@
         <file category="source" condition="ARMCC" name="stdio_redirect/keil/Retarget.c"/>
         <file category="source" condition="ARMCC, GCC, IAR" name="stdio_redirect/stdio_io.c"/>
         <file category="header" condition="ARMCC, GCC, IAR" name="stdio_redirect/stdio_io.h"/>
-        <file category="source" condition="ARMCC, GCC, IAR" name="edbg_uart_example.c"/>
-        <file category="doc" condition="ARMCC, GCC, IAR" name="documentation/edbg_usart.rst"/>
+        <file category="source" condition="ARMCC, GCC, IAR" name="main.c"/>
         <file category="source" condition="ARMCC, GCC, IAR" name="driver_init.c"/>
         <file category="header" condition="ARMCC, GCC, IAR" name="driver_init.h"/>
         <file category="header" condition="ARMCC, GCC, IAR" name="atmel_start_pins.h"/>
