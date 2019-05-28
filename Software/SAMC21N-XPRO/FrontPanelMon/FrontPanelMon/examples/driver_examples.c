@@ -47,3 +47,29 @@ void EDBG_COM_example(void)
 
 	io_write(io, (uint8_t *)"Hello World!", 12);
 }
+
+/**
+ * Example of using SPI_EXT2 to write "Hello World" using the IO abstraction.
+ *
+ * Since the driver is asynchronous we need to use statically allocated memory for string
+ * because driver initiates transfer and then returns before the transmission is completed.
+ *
+ * Once transfer has been completed the tx_cb function will be called.
+ */
+
+static uint8_t example_SPI_EXT2[12] = "Hello World!";
+
+static void complete_cb_SPI_EXT2(const struct spi_s_async_descriptor *const desc)
+{
+	/* Transfer completed */
+}
+
+void SPI_EXT2_example(void)
+{
+	struct io_descriptor *io;
+	spi_s_async_get_io_descriptor(&SPI_EXT2, &io);
+
+	spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_TX, (FUNC_PTR)complete_cb_SPI_EXT2);
+	spi_s_async_enable(&SPI_EXT2);
+	io_write(io, example_SPI_EXT2, 12);
+}

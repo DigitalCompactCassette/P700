@@ -563,7 +563,7 @@ drivers:
       spi_slave_arch_cpha: Sample input on trailing edge
       spi_slave_arch_cpol: SCK is high when idle
       spi_slave_arch_dbgstop: Keep running
-      spi_slave_arch_dord: MSB first
+      spi_slave_arch_dord: LSB first
       spi_slave_arch_ibon: In data stream
       spi_slave_arch_ploaden: false
       spi_slave_arch_runstdby: false
@@ -649,6 +649,57 @@ drivers:
         configuration:
           core_gclk_selection: Generic clock generator 0
           slow_gclk_selection: Generic clock generator 3
+  SPI_EXT2:
+    user_label: SPI_EXT2
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM5::driver_config_definition::SPI.Slave::HAL:Driver:SPI.Slave.Async
+    functionality: SPI
+    api: HAL:Driver:SPI_Slave_Async
+    configuration:
+      spi_slave_advanced: true
+      spi_slave_arch_addr: 0
+      spi_slave_arch_addrmask: 0
+      spi_slave_arch_amode: Address mask
+      spi_slave_arch_amode_en: false
+      spi_slave_arch_cpha: Sample input on trailing edge
+      spi_slave_arch_cpol: SCK is high when idle
+      spi_slave_arch_dbgstop: Keep running
+      spi_slave_arch_dord: LSB first
+      spi_slave_arch_ibon: In data stream
+      spi_slave_arch_ploaden: false
+      spi_slave_arch_runstdby: false
+      spi_slave_arch_ssde: false
+      spi_slave_character_size: 8 bits
+      spi_slave_rx_enable: true
+    optional_signals: []
+    variant:
+      specification: TXPO=3, RXPO=2
+      required_signals:
+      - name: SERCOM5/PAD/0
+        pad: PB02
+        label: MISO
+      - name: SERCOM5/PAD/1
+        pad: PB03
+        label: _SS
+      - name: SERCOM5/PAD/2
+        pad: PB00
+        label: MOSI
+      - name: SERCOM5/PAD/3
+        pad: PB01
+        label: SCK
+    clocks:
+      domain_group:
+        nodes:
+        - name: Core
+          input: Generic clock generator 0
+          external: false
+          external_frequency: 0
+        - name: Slow
+          input: Generic clock generator 3
+          external: false
+          external_frequency: 0
+        configuration:
+          core_gclk_selection: Generic clock generator 0
+          slow_gclk_selection: Generic clock generator 3
 pads:
   LED0:
     name: PC05
@@ -691,5 +742,29 @@ pads:
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC28
     mode: Digital input
     user_label: PC28
+    configuration: null
+  PB00:
+    name: PB00
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB00
+    mode: Digital input
+    user_label: PB00
+    configuration: null
+  PB01:
+    name: PB01
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB01
+    mode: Digital output
+    user_label: PB01
+    configuration: null
+  PB02:
+    name: PB02
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB02
+    mode: Digital output
+    user_label: PB02
+    configuration: null
+  PB03:
+    name: PB03
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB03
+    mode: Digital input
+    user_label: PB03
     configuration: null
 toolchain_options: []
