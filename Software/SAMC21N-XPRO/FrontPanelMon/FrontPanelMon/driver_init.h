@@ -21,9 +21,17 @@ extern "C" {
 #include <hal_io.h>
 #include <hal_sleep.h>
 
+#include <hal_spi_s_async.h>
+
 #include <hal_usart_sync.h>
 
+extern struct spi_s_async_descriptor SPI_EXT1;
+
 extern struct usart_sync_descriptor EDBG_COM;
+
+void SPI_EXT1_PORT_init(void);
+void SPI_EXT1_CLOCK_init(void);
+void SPI_EXT1_init(void);
 
 void EDBG_COM_PORT_init(void);
 void EDBG_COM_CLOCK_init(void);

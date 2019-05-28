@@ -549,6 +549,57 @@ drivers:
     variant: null
     clocks:
       domain_group: null
+  SPI_EXT1:
+    user_label: SPI_EXT1
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM1::driver_config_definition::SPI.Slave::HAL:Driver:SPI.Slave.Async
+    functionality: SPI
+    api: HAL:Driver:SPI_Slave_Async
+    configuration:
+      spi_slave_advanced: true
+      spi_slave_arch_addr: 0
+      spi_slave_arch_addrmask: 0
+      spi_slave_arch_amode: Address mask
+      spi_slave_arch_amode_en: false
+      spi_slave_arch_cpha: Sample input on trailing edge
+      spi_slave_arch_cpol: SCK is high when idle
+      spi_slave_arch_dbgstop: Keep running
+      spi_slave_arch_dord: MSB first
+      spi_slave_arch_ibon: In data stream
+      spi_slave_arch_ploaden: false
+      spi_slave_arch_runstdby: false
+      spi_slave_arch_ssde: false
+      spi_slave_character_size: 8 bits
+      spi_slave_rx_enable: true
+    optional_signals: []
+    variant:
+      specification: TXPO=3, RXPO=2
+      required_signals:
+      - name: SERCOM1/PAD/0
+        pad: PC27
+        label: MISO
+      - name: SERCOM1/PAD/1
+        pad: PC28
+        label: _SS
+      - name: SERCOM1/PAD/2
+        pad: PA18
+        label: MOSI
+      - name: SERCOM1/PAD/3
+        pad: PA19
+        label: SCK
+    clocks:
+      domain_group:
+        nodes:
+        - name: Core
+          input: Generic clock generator 0
+          external: false
+          external_frequency: 0
+        - name: Slow
+          input: Generic clock generator 3
+          external: false
+          external_frequency: 0
+        configuration:
+          core_gclk_selection: Generic clock generator 0
+          slow_gclk_selection: Generic clock generator 3
   EDBG_COM:
     user_label: EDBG_COM
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM4::driver_config_definition::UART::HAL:Driver:USART.Sync
@@ -616,5 +667,29 @@ pads:
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB11
     mode: Peripheral IO
     user_label: PB11
+    configuration: null
+  PA18:
+    name: PA18
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA18
+    mode: Digital input
+    user_label: PA18
+    configuration: null
+  PA19:
+    name: PA19
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA19
+    mode: Digital output
+    user_label: PA19
+    configuration: null
+  PC27:
+    name: PC27
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC27
+    mode: Digital output
+    user_label: PC27
+    configuration: null
+  PC28:
+    name: PC28
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC28
+    mode: Digital input
+    user_label: PC28
     configuration: null
 toolchain_options: []

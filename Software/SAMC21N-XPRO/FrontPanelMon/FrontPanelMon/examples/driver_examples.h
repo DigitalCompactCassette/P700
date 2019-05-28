@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+void SPI_EXT1_example(void);
+
 void EDBG_COM_example(void);
 
 #ifdef __cplusplus
