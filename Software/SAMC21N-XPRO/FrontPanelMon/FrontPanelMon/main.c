@@ -88,6 +88,7 @@ int main(void)
       // Data came from front panel
       if (!fromfp)
       {
+        gpio_set_pin_level(LED0, false);
         printf("\n");
         fromfp = true;
       }
@@ -97,6 +98,7 @@ int main(void)
       // Data came from dig-mcu
       if (fromfp)
       {
+        gpio_set_pin_level(LED0, true);
         printf("-- ");
         fromfp = false;
       }
