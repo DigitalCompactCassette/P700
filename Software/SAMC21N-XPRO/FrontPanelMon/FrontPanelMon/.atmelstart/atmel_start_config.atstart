@@ -731,6 +731,13 @@ pads:
     mode: Digital output
     user_label: PA19
     configuration: null
+  SW0:
+    name: PB19
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB19
+    mode: Digital input
+    user_label: SW0
+    configuration:
+      pad_pull_config: Pull-up
   PC27:
     name: PC27
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC27

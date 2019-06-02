@@ -184,6 +184,21 @@ void system_init(void)
 {
 	init_mcu();
 
+	// GPIO on PB19
+
+	// Set pin direction to input
+	gpio_set_pin_direction(SW0, GPIO_DIRECTION_IN);
+
+	gpio_set_pin_pull_mode(SW0,
+	                       // <y> Pull configuration
+	                       // <id> pad_pull_config
+	                       // <GPIO_PULL_OFF"> Off
+	                       // <GPIO_PULL_UP"> Pull-up
+	                       // <GPIO_PULL_DOWN"> Pull-down
+	                       GPIO_PULL_UP);
+
+	gpio_set_pin_function(SW0, GPIO_PIN_FUNCTION_OFF);
+
 	// GPIO on PC05
 
 	gpio_set_pin_level(LED0,

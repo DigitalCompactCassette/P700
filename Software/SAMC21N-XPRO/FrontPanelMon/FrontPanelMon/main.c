@@ -42,14 +42,60 @@
   this program: to figure out what the messages mean.
 */
 
+
+#define DEBOUNCE_COUNT 5
+
+
+//---------------------------------------------------------------------------
+// Check the button and disable the SPI ports if it's pressed.
+//
+// The SPI ports are enabled again when the button is released.
+//
+// Returns true if the function is debouncing the switch input.
+bool check_button(void)
+{
+  static unsigned count;
+
+  if (gpio_get_pin_level(SW0))
+  {
+    // Button released
+    if (count == DEBOUNCE_COUNT)
+    {
+      spi_s_async_enable(&SPI_EXT1);
+      spi_s_async_enable(&SPI_EXT2);
+    }
+
+    count = 0;
+  }
+  else
+  {
+    // Button is pressed
+    if (count < DEBOUNCE_COUNT)
+    {
+      count++;
+    }
+    else if (count == DEBOUNCE_COUNT)
+    {
+      spi_s_async_disable(&SPI_EXT2);
+      spi_s_async_disable(&SPI_EXT1);
+    }
+  }
+
+  return (count != 0);
+}
+
+
+//---------------------------------------------------------------------------
+// Main application
 int main(void)
 {
   atmel_start_init();
 
-  struct io_descriptor *spi_fp; // From front panel
-  struct io_descriptor *spi_di; // From dig-mcu
-  spi_s_async_get_io_descriptor(&SPI_EXT1, &spi_fp);
-  spi_s_async_get_io_descriptor(&SPI_EXT2, &spi_di);
+  struct io_descriptor *spi_cmd; // From front panel
+  struct io_descriptor *spi_rsp; // From dig-mcu
+
+  spi_s_async_get_io_descriptor(&SPI_EXT1, &spi_cmd);
+  spi_s_async_get_io_descriptor(&SPI_EXT2, &spi_rsp);
 
   spi_s_async_enable(&SPI_EXT1);
   spi_s_async_enable(&SPI_EXT2);
@@ -57,20 +103,26 @@ int main(void)
   printf("Front panel monitor\n");
   fflush(stdout);
 
-  bool fromfp = false;
-  
+  bool iscmd = false;
+  uint8_t checksum = 0;
+
   for(;;)
   {
-    uint8_t fpdata;
-    uint8_t didata;
+    uint8_t cmdbyte;
+    uint8_t rspbyte;
+
+    if (check_button())
+    {
+      continue;
+    }
 
     // Data should come in on both connections at the same time.
     // So wait until there's data on both ports.
-    while (!io_read(spi_fp, &fpdata, 1))
+    while (!io_read(spi_cmd, &cmdbyte, 1))
     {
       // Nothing
     }
-    while (!io_read(spi_di, &didata, 1))
+    while (!io_read(spi_rsp, &rspbyte, 1))
     {
       // Nothing
     }
@@ -83,24 +135,34 @@ int main(void)
     // 0xFF but this is very unlikely and probably easy to recognize. If it
     // happens, we're going to have to pay attention to the MESSYNC pin on
     // the deck-bridge connector.
-    if (fpdata != 0xFF)
+    // We also don't handle the case where the first incoming bytes at
+    // beginning-of-world are both 0xFF. In that case we simply have no idea
+    // who is (not) writing data on the bus but even if we did, we wouldn't
+    // know how to decode it anyway so it doesn't matter.
+    if (cmdbyte != 0xFF)
     {
       // Data came from front panel
-      if (!fromfp)
+      if (!iscmd)
       {
+        iscmd = true;
+
         gpio_set_pin_level(LED0, false);
-        printf("\n");
-        fromfp = true;
+        printf("%s\n", (checksum == 0xFF) ? "" : "<!>");
+
+        checksum = 0;
       }
     }
-    else if (didata != 0xFF)
+    else if (rspbyte != 0xFF)
     {
       // Data came from dig-mcu
-      if (fromfp)
+      if (iscmd)
       {
+        iscmd = false;
+
         gpio_set_pin_level(LED0, true);
-        printf("-- ");
-        fromfp = false;
+        printf("%s-- ", (checksum == 0xFF) ? "" : "<!>");
+
+        checksum = 0;
       }
     }
     else
@@ -108,6 +170,9 @@ int main(void)
       // Both bytes were 0xFF, don't change direction
     }
     
-    printf("%02X ", (fromfp ? fpdata : didata) & 0xFF);
+    uint8_t curbyte = (iscmd ? cmdbyte : rspbyte);
+
+    checksum += curbyte;
+    printf("%02X ",  curbyte & 0xFF);
   }  
 }
