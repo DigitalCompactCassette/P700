@@ -719,6 +719,12 @@ pads:
     mode: Peripheral IO
     user_label: PB11
     configuration: null
+  DGI_GPIO0:
+    name: PB12
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB12
+    mode: Digital output
+    user_label: DGI_GPIO0
+    configuration: null
   PA18:
     name: PA18
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA18
@@ -738,6 +744,12 @@ pads:
     user_label: SW0
     configuration:
       pad_pull_config: Pull-up
+  DGI_GPIO1:
+    name: PA22
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA22
+    mode: Digital output
+    user_label: DGI_GPIO1
+    configuration: null
   PC27:
     name: PC27
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC27

@@ -184,6 +184,34 @@ void system_init(void)
 {
 	init_mcu();
 
+	// GPIO on PA22
+
+	gpio_set_pin_level(DGI_GPIO1,
+	                   // <y> Initial level
+	                   // <id> pad_initial_level
+	                   // <false"> Low
+	                   // <true"> High
+	                   false);
+
+	// Set pin direction to output
+	gpio_set_pin_direction(DGI_GPIO1, GPIO_DIRECTION_OUT);
+
+	gpio_set_pin_function(DGI_GPIO1, GPIO_PIN_FUNCTION_OFF);
+
+	// GPIO on PB12
+
+	gpio_set_pin_level(DGI_GPIO0,
+	                   // <y> Initial level
+	                   // <id> pad_initial_level
+	                   // <false"> Low
+	                   // <true"> High
+	                   false);
+
+	// Set pin direction to output
+	gpio_set_pin_direction(DGI_GPIO0, GPIO_DIRECTION_OUT);
+
+	gpio_set_pin_function(DGI_GPIO0, GPIO_PIN_FUNCTION_OFF);
+
 	// GPIO on PB19
 
 	// Set pin direction to input

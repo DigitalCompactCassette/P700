@@ -85,11 +85,42 @@ bool check_button(void)
 }
 
 
+char cmdbuf[256];
+char rspbuf[256];
+struct ringbuffer rb_cmd;
+struct ringbuffer rb_rsp;
+
+
+//---------------------------------------------------------------------------
+// Receive callback for command input
+void cmd_rx_callback(struct spi_s_async_descriptor *spi)
+{
+  uint8_t rxbyte;
+
+  ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful
+  ringbuffer_put(&rb_cmd, rxbyte);
+}
+
+
+//---------------------------------------------------------------------------
+// Receive callback for response input
+void rsp_rx_callback(struct spi_s_async_descriptor *spi)
+{
+  uint8_t rxbyte;
+
+  ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful
+  ringbuffer_put(&rb_rsp, rxbyte);
+}
+
+
 //---------------------------------------------------------------------------
 // Main application
 int main(void)
 {
   atmel_start_init();
+
+  ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
+  ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
 
   struct io_descriptor *spi_cmd; // From front panel
   struct io_descriptor *spi_rsp; // From dig-mcu
@@ -97,10 +128,12 @@ int main(void)
   spi_s_async_get_io_descriptor(&SPI_EXT1, &spi_cmd);
   spi_s_async_get_io_descriptor(&SPI_EXT2, &spi_rsp);
 
+  spi_s_async_register_callback(&SPI_EXT1, SPI_S_CB_RX, (FUNC_PTR)cmd_rx_callback);
+  spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_RX, (FUNC_PTR)rsp_rx_callback);
   spi_s_async_enable(&SPI_EXT1);
   spi_s_async_enable(&SPI_EXT2);
 
-  printf("Front panel monitor\n");
+  printf("\nFront panel monitor\n");
   fflush(stdout);
 
   bool iscmd = false;
@@ -118,15 +151,14 @@ int main(void)
 
     // Data should come in on both connections at the same time.
     // So wait until there's data on both ports.
-    while (!io_read(spi_cmd, &cmdbyte, 1))
-    {
-      // Nothing
-    }
-    while (!io_read(spi_rsp, &rspbyte, 1))
+    while (!ringbuffer_num(&rb_cmd) && !ringbuffer_num(&rb_rsp))
     {
       // Nothing
     }
     
+    ringbuffer_get(&rb_cmd, &cmdbyte);
+    ringbuffer_get(&rb_rsp, &rspbyte);
+
     // If one of the bytes is 0xFF but the other one isn't, we know for sure
     // who is sending the data. Otherwise (i.e. when both incoming bytes
     // are 0xFF) we assume that the data came from the same source as the
@@ -147,7 +179,7 @@ int main(void)
         iscmd = true;
 
         gpio_set_pin_level(LED0, false);
-        printf("%s\n", (checksum == 0xFF) ? "" : "<!>");
+        printf("%s\n", (checksum == 0xFF) ? "" : "<!!!>");
 
         checksum = 0;
       }
@@ -160,7 +192,7 @@ int main(void)
         iscmd = false;
 
         gpio_set_pin_level(LED0, true);
-        printf("%s-- ", (checksum == 0xFF) ? "" : "<!>");
+        printf("%s-- ", (checksum == 0xFF) ? "" : "<!!!>");
 
         checksum = 0;
       }
