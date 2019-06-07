@@ -113,6 +113,312 @@ void rsp_rx_callback(struct spi_s_async_descriptor *spi)
 }
 
 
+typedef struct
+{
+  uint8_t buf[255];
+  uint8_t len; // Total length
+  uint8_t rsp; // Index of response
+
+} buf_t;
+
+
+//---------------------------------------------------------------------------
+// Print a string
+void printstring(const uint8_t *begin, const uint8_t *end)
+{
+  putc('\"', stdout);
+
+  for (const uint8_t *s = begin; s != end; s++)
+  {
+    printf((((*s < 32) || (*s >= 0x7E)) ? "\\x%02X" : "%c"), *s);
+  }
+
+  putc('\"', stdout);
+}
+
+
+//---------------------------------------------------------------------------
+// Parse a buffer
+void parsebuffer(buf_t *buf, bool valid)
+{
+  if (!valid)
+  {
+    fputs("CHECKSUM ERROR\n", stdout);
+  }
+  else if ((buf->len > 4) && (buf->rsp >= 2)) // At least one valid byte each, plus checksum bytes
+  {
+    // Aliases for improved readability
+    uint8_t *cmd = &buf->buf[0];
+    uint8_t *rsp = &buf->buf[buf->rsp];
+
+    // Lengths without checksum bytes
+    uint8_t cmdlen = buf->rsp - 1;
+    uint8_t rsplen = (buf->len - buf->rsp) - 1;
+
+    // Flip first bits. These alternate between subsequent commands and
+    // responses, probably to ensure that the firmware always works on live
+    // data, not on stale data that happens when things stop responding
+    // because of some technical problem.
+    (*cmd) &= 0x7F;
+    (*rsp) &= 0x7F;
+
+    switch(*cmd)
+    {
+    case 0x10:
+      // Key or remote command
+      printf("COMMAND: ");
+      if ((cmdlen ==2) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        switch (cmd[1])
+        {
+        case 0x01: printf("SIDE A/B\n");    return;
+        case 0x02: printf("OPEN/CLOSE\n");  return;
+        case 0x03: printf("EDIT\n");        return;
+        case 0x04: printf("REC/PAUSE\n");   return;
+        case 0x05: printf("STOP\n");        return;
+        case 0x06: printf("REPEAT\n");      return;
+        case 0x07: printf("DOLBY\n");       return;
+        case 0x08: printf("SCROLL\n");      return;
+        case 0x09: printf("RECLEVEL-\n");   return;
+        case 0x0A: printf("APPEND\n");      return;
+        case 0x0B: printf("PLAY\n");        return;
+        case 0x0C: printf("PRESETS\n");     return;
+        case 0x0D: printf("TIME\n");        return;
+        case 0x0E: printf("TEXT\n");        return;
+        case 0x0F: printf("RECLEVEL+\n");   return;
+        case 0x10: printf("RECORD\n");      return;
+        case 0x11: printf("NEXT\n");        return;
+        case 0x12: printf("PREV\n");        return;
+
+        // Remote control
+        // "PAUSE" and "COUNTER RESET" and "WRITE MARK" don't show up
+        //
+        // BUG? If you press TEXT on the remote control repeatedly, when it
+        // goes to ARTIST, it says NO TEXT INFO (instead of the artist)
+        // and then the front panel starts sending 51 03 to the dig MCU
+        // repeatedly.
+        case 0x1C: printf("FFWD\n");        return;
+        case 0x1D: printf("EJECT\n");       return; // Duplicate of 10 02
+        case 0x1F: printf("REWIND\n");      return;
+        case 0x20: printf("NUMBER 0\n");    return;
+        case 0x21: printf("NUMBER 1\n");    return;
+        case 0x22: printf("NUMBER 2\n");    return;
+        case 0x23: printf("NUMBER 3\n");    return;
+        case 0x24: printf("NUMBER 4\n");    return;
+        case 0x25: printf("NUMBER 5\n");    return;
+        case 0x26: printf("NUMBER 6\n");    return;
+        case 0x27: printf("NUMBER 7\n");    return;
+        case 0x28: printf("NUMBER 8\n");    return;
+        case 0x29: printf("NUMBER 9\n");    return;
+        case 0x2C: printf("STANDBY\n");     return;
+        default:
+          ; // Nothing
+        }
+      }
+      break;
+
+    case 0x23:
+      // Set repeat mode
+      printf("REPEAT MODE: ");
+      if ((cmdlen == 2) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        switch(cmd[1])
+        {
+        case 1: printf("Repeat None\n");    return;
+        case 2: printf("Repeat Track\n");   return;
+        case 3: printf("Repeat All\n");     return;
+        default:
+          ; // Nothing
+        }
+      }
+      break;
+
+    case 0x2A:
+      // Sector. This is issued after the 10 01 (SIDE A/B) command.
+      // Presumably the sector can be 1 to 4 inclusive but without 4-sector
+      // tapes, we won't know...
+      printf("SECTOR: ");
+      if ((cmdlen ==2) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        printf("%u\n", cmd[1]);
+        return;
+      }
+      break;
+
+    case 0x2F:
+      // Go to track (pdcc only?)
+      printf("GO TO TRACK: ");
+      if ((cmdlen == 3) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        printf("To=%u, [2]=%u\n", cmd[1], cmd[2]);
+        return;
+      }
+      break;
+
+    case 0x36:
+      // Recorder ID. Sent to dig-mcu after reset
+      printf("ID: ");
+      if ((cmdlen == 42) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        printstring(cmd + 1, cmd + cmdlen);
+        putc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x38:
+      // Time mode. This is issued after the TIME command (10 0D)
+      // Note: for [super] user tapes, the display has a VU mode too:
+      // Press TIME enough times and it will only send TIME but no time mode
+      // command.
+      // For ACC's a counter will appear in one of the modes, this also
+      // doesn't issue a time mode command.
+      printf("TIME MODE: ");
+      if ((cmdlen == 2) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        switch(cmd[1])
+        {
+        case 1: printf("TOTAL TIME\n");     return; // prerec/dcc/acc
+        case 2: printf("TOT REM TIME\n");   return; // prerec
+        case 3: printf("TRACK TIME\n");     return; // prerec/sudcc
+
+        case 5: printf("REM TIME\n");       return; // non-prerecorded
+        default:
+          ; // Nothing
+        }
+      }
+      break;
+
+    case 0x41:
+      // Deck status
+      //if ((cmdlen == 1) && (rsplen == 4) && (!memcmp(rsp, "\0\0\xC0\x41", rsplen)))
+      {
+        return;
+      }
+      break;
+
+    case 0x46:
+      // Get drawer status
+      printf("GET DRAWER STATUS -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        switch(rsp[1])
+        {
+        case 1: printf("Closed\n");         return;
+        case 2: printf("Open\n");           return;
+        case 3: printf("Closing\n");        return;
+        case 4: printf("Opening\n");        return;
+        case 5: printf("Blocked\n");        return;
+        case 6: printf("Unknown\n");        return;
+        default:
+          ; // Nothing
+        }
+      }
+      break;
+
+    case 0x51:
+      // Get long title from [s]udcc
+      printf("GET LONG UDCC TEXT -> ");
+      if ((cmdlen == 2) && (cmd[1] == 0xFA) && (rsplen == 41) && (rsp[0] == 0))
+      {
+        printstring(rsp + 1, rsp + rsplen);
+        putc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x52:
+      // Get long title from pdcc
+      printf("GET LONG PDCC TEXT: ");
+      if ((cmdlen == 2) && (rsplen == 41) && (rsp[0] == 0))
+      {
+        printf("Track %u -> ", cmd[1]);
+        printstring(rsp + 1, rsp + rsplen);
+        putc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x53:
+      // Get short title from [s]udcc
+      printf("GET SHORT UDCC TEXT -> ");
+      if ((cmdlen == 2) && (cmd[1] == 0xFA) && (rsplen == 13) && (rsp[0] == 0))
+      {
+        printstring(rsp + 1, rsp + rsplen);
+        putc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x54:
+      // Get short title from [s]udcc
+      printf("GET SHORT PDCC TEXT: ");
+      if ((cmdlen == 2) && (rsplen == 13) && (rsp[0] == 0))
+      {
+        printf("Track %u -> ", cmd[1]);
+        printstring(rsp + 1, rsp + rsplen);
+        putc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x5E:
+      // VU meters, 2 bytes between 00-5F. 5F (95 decimal) is silence.
+      // So values are probably negative decibels for left and right.
+      //if ((cmdlen == 1) && (rsplen == 3) && (!memcmp(prsp, "\0\x5F\x5F", rsplen)))
+      {
+        return;
+      }
+      break;
+
+    case 0x60:
+      // byte 0=error 00=ok
+      // byte 1=status, 8=play?
+      // byte 2=track
+      // byte 3=?
+      // byte 4/5=time in BCD, mm/ss
+      // byte 6=?
+      // byte 7/8=tape counter in BCD Big-endian, 0-9999 
+      // byte 9=?
+/*
+      printf("Time: Track %u Time %02X:%02X Counter %02X%02X [1=%02X 3=%02X 6=%02X 9=%02X]\n", 
+        rsp[2], rsp[4], rsp[5], rsp[7], rsp[8], 
+        rsp[1], rsp[3], rsp[6], rsp[9]);
+*/
+      return;
+      break;
+
+    case 0x61:
+      // Get tape info for prerecorded tape
+      printf("PREREC TAPE INFO -> ");
+      if ((cmdlen == 1) && (rsplen == 6) && (rsp[0] == 0))
+      {
+        printf("[1]=0x%02X Tracks=%02X Total time=%02X:%02X:%02X\n",
+          rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
+        return;
+      }
+      break;
+
+    default:
+      ;// Nothing
+    }
+
+    for (uint8_t u = 0; u < buf->len - 1; u++)
+    {
+      if (u == buf->rsp - 1)
+      {
+        printf("-- ");
+        continue; // ignore last byte of command
+      }
+
+      printf("%02X ", buf->buf[u] & 0xFF);
+    }
+  }
+
+  putc('\n', stdout);
+}
+
+
 //---------------------------------------------------------------------------
 // Main application
 int main(void)
@@ -134,15 +440,16 @@ int main(void)
   spi_s_async_enable(&SPI_EXT2);
 
   printf("\nFront panel monitor\n");
-  fflush(stdout);
 
-  bool iscmd = false;
   uint8_t checksum = 0;
+  bool valid = true;
+  buf_t buffer;
 
   for(;;)
   {
     uint8_t cmdbyte;
     uint8_t rspbyte;
+    uint8_t rxbyte;
 
     if (check_button())
     {
@@ -163,48 +470,75 @@ int main(void)
     // who is sending the data. Otherwise (i.e. when both incoming bytes
     // are 0xFF) we assume that the data came from the same source as the
     // previous byte.
+    //
     // That means we get out of sync if the first byte from either side is
-    // 0xFF but this is very unlikely and probably easy to recognize. If it
-    // happens, we're going to have to pay attention to the MESSYNC pin on
-    // the deck-bridge connector.
-    // We also don't handle the case where the first incoming bytes at
-    // beginning-of-world are both 0xFF. In that case we simply have no idea
-    // who is (not) writing data on the bus but even if we did, we wouldn't
-    // know how to decode it anyway so it doesn't matter.
+    // 0xFF but this is very unlikely and probably easy to recognize. For
+    // one thing, the checksum will not match if we get it wrong.
     if (cmdbyte != 0xFF)
     {
       // Data came from front panel
-      if (!iscmd)
+
+      // If we already have some response bytes, parse the buffer and clear
+      // it before we store the new byte.
+      if (buffer.rsp)
       {
-        iscmd = true;
+        // Check response checksum
+        if (checksum != 0xFF)
+        {
+          valid = false;
+        }
 
+        // Note: Interpreting the data may be an expensive operation.
+        // That's okay, the receive callbacks will just gather up data
+        // into the ringbuffers in the background.
+        gpio_set_pin_level(LED0, true);
+        parsebuffer(&buffer, valid);
         gpio_set_pin_level(LED0, false);
-        printf("%s\n", (checksum == 0xFF) ? "" : "<!!!>");
 
+        buffer.len = buffer.rsp = 0;
         checksum = 0;
+        valid = true;
       }
+
+      checksum += (rxbyte = cmdbyte);
     }
     else if (rspbyte != 0xFF)
     {
       // Data came from dig-mcu
-      if (iscmd)
-      {
-        iscmd = false;
 
-        gpio_set_pin_level(LED0, true);
-        printf("%s-- ", (checksum == 0xFF) ? "" : "<!!!>");
+      // Ignore the data if we don't have a command yet.
+      // There's no point trying to catch and interpret a response without
+      // the command.
+      if (!buffer.len)
+      {
+        continue;
+      }
+
+      // If this is the first response byte, mark it
+      if (!buffer.rsp)
+      {
+        // Check command checksum
+        if (checksum != 0xFF)
+        {
+          valid = false;
+        }
+
+        buffer.rsp = buffer.len; // Response starts here
 
         checksum = 0;
       }
+
+      checksum += (rxbyte = rspbyte);
     }
     else
     {
       // Both bytes were 0xFF, don't change direction
+      checksum += (rxbyte = 0xFF);
     }
-    
-    uint8_t curbyte = (iscmd ? cmdbyte : rspbyte);
 
-    checksum += curbyte;
-    printf("%02X ",  curbyte & 0xFF);
-  }  
+    if (buffer.len < sizeof(buffer.buf))
+    {
+      buffer.buf[buffer.len++] = rxbyte;
+    }
+  }
 }
