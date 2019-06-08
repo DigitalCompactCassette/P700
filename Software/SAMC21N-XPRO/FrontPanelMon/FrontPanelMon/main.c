@@ -14,6 +14,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "jg_stdio_redirect.h"
+
 /*
   This program is intended to reverse-engineer the data that goes over the
   bus between the front panel and the digital board microcontroller of the
@@ -159,7 +161,7 @@ void parsebuffer(buf_t *buf, bool valid)
   if ((buf->len < 4) || (buf->rsp < 2))
   {
     // We didn't get at least 2 bytes for command and 2 bytes for response.
-    fputs("IGNORING: ", stdout);
+    printf("IGNORING buf len=%u rsp index=%u: ", buf->len, buf->rsp);
     printhex(buf->buf, buf->buf + buf->len);
     fputc('\n', stdout);
     return;
@@ -192,143 +194,139 @@ void parsebuffer(buf_t *buf, bool valid)
 
     switch(*cmd)
     {
-#define Q(name, wantedcmdlen, wantedrsplen) do { printf(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) break; } while(0)
-#define Q11(name) Q(name, 1, 1);
+// Shortcuts
+#define P(name) printf("%02X %s", cmd[0], name)
+#define QCR(name, wantedcmdlen, wantedrsplen) do { P(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) goto dump; } while(0)
+#define QC(name, wantedcmdlen) QCR(name, wantedcmdlen, 1) // Command with parameters, no return data
+#define QR(name, wantedrsplen) QCR(name, 1, wantedrsplen) // Command without parameters, has return data
+#define Q(name) QCR(name , 1, 1); do { fputc('\n', stdout); return; } while(0) // Command with no parameters, no return data
 
-    case 0x02: Q11("DECK: STOP\n");         return;
-    case 0x03: Q11("DECK: PLAY\n");         return;
-    case 0x05: Q11("DECK: FFWD\n");         return;
-    case 0x06: Q11("DECK: REWIND\n");       return;
-    case 0x0B: Q11("DECK: CLOSE\n");        return;
-    case 0x0C: Q11("DECK: OPEN\n");         return;
+    case 0x02: Q("DECK: STOP");
+    case 0x03: Q("DECK: PLAY");
+    case 0x05: Q("DECK: FFWD");
+    case 0x06: Q("DECK: REWIND");
+    case 0x0B: Q("DECK: CLOSE");
+    case 0x0C: Q("DECK: OPEN");
     
     case 0x10:
-      // Key or remote command
-      printf("KEY/RC: ");
-      if ((cmdlen ==2) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        switch (cmd[1])
-        {
-        case 0x01: printf("SIDE A/B\n");    return;
-        case 0x02: printf("OPEN/CLOSE\n");  return;
-        case 0x03: printf("EDIT\n");        return;
-        case 0x04: printf("REC/PAUSE\n");   return;
-        case 0x05: printf("STOP\n");        return;
-        case 0x06: printf("REPEAT\n");      return;
-        case 0x07: printf("DOLBY\n");       return;
-        case 0x08: printf("SCROLL\n");      return;
-        case 0x09: printf("RECLEVEL-\n");   return;
-        case 0x0A: printf("APPEND\n");      return;
-        case 0x0B: printf("PLAY\n");        return;
-        case 0x0C: printf("PRESETS\n");     return;
-        case 0x0D: printf("TIME\n");        return;
-        case 0x0E: printf("TEXT\n");        return;
-        case 0x0F: printf("RECLEVEL+\n");   return;
-        case 0x10: printf("RECORD\n");      return;
-        case 0x11: printf("NEXT\n");        return;
-        case 0x12: printf("PREV\n");        return;
+      // Key or remote command. These are ignored by the dig MCU
+      QC("KEY/RC: ", 2);
 
-        // Remote control
-        // "PAUSE" and "COUNTER RESET" and "WRITE MARK" don't show up
-        //
-        // BUG? If you press TEXT on the remote control repeatedly, when it
-        // goes to ARTIST, it says NO TEXT INFO (instead of the artist)
-        // and then the front panel starts sending 51 03 to the dig MCU
-        // repeatedly.
-        case 0x1C: printf("FFWD\n");        return;
-        case 0x1D: printf("EJECT\n");       return; // Duplicate of 10 02
-        case 0x1F: printf("REWIND\n");      return;
-        case 0x20: printf("NUMBER 0\n");    return;
-        case 0x21: printf("NUMBER 1\n");    return;
-        case 0x22: printf("NUMBER 2\n");    return;
-        case 0x23: printf("NUMBER 3\n");    return;
-        case 0x24: printf("NUMBER 4\n");    return;
-        case 0x25: printf("NUMBER 5\n");    return;
-        case 0x26: printf("NUMBER 6\n");    return;
-        case 0x27: printf("NUMBER 7\n");    return;
-        case 0x28: printf("NUMBER 8\n");    return;
-        case 0x29: printf("NUMBER 9\n");    return;
-        case 0x2C: printf("STANDBY\n");     return;
-        default:
-          ; // Nothing
-        }
+      switch (cmd[1])
+      {
+      case 0x01: printf("SIDE A/B\n");    return;
+      case 0x02: printf("OPEN/CLOSE\n");  return;
+      case 0x03: printf("EDIT\n");        return;
+      case 0x04: printf("REC/PAUSE\n");   return;
+      case 0x05: printf("STOP\n");        return;
+      case 0x06: printf("REPEAT\n");      return;
+      case 0x07: printf("DOLBY\n");       return;
+      case 0x08: printf("SCROLL\n");      return;
+      case 0x09: printf("RECLEVEL-\n");   return;
+      case 0x0A: printf("APPEND\n");      return;
+      case 0x0B: printf("PLAY\n");        return;
+      case 0x0C: printf("PRESETS\n");     return;
+      case 0x0D: printf("TIME\n");        return;
+      case 0x0E: printf("TEXT\n");        return;
+      case 0x0F: printf("RECLEVEL+\n");   return;
+      case 0x10: printf("RECORD\n");      return;
+      case 0x11: printf("NEXT\n");        return;
+      case 0x12: printf("PREV\n");        return;
+
+      // Remote control
+      // "PAUSE" and "COUNTER RESET" and "WRITE MARK" don't show up
+      //
+      // BUG? If you press TEXT on the remote control repeatedly, when it
+      // goes to ARTIST, it says NO TEXT INFO (instead of the artist)
+      // and then the front panel starts sending 51 03 to the dig MCU
+      // repeatedly.
+      case 0x1C: printf("FFWD\n");        return;
+      case 0x1D: printf("EJECT\n");       return; // Duplicate of 10 02
+      case 0x1F: printf("REWIND\n");      return;
+      case 0x20: printf("NUMBER 0\n");    return;
+      case 0x21: printf("NUMBER 1\n");    return;
+      case 0x22: printf("NUMBER 2\n");    return;
+      case 0x23: printf("NUMBER 3\n");    return;
+      case 0x24: printf("NUMBER 4\n");    return;
+      case 0x25: printf("NUMBER 5\n");    return;
+      case 0x26: printf("NUMBER 6\n");    return;
+      case 0x27: printf("NUMBER 7\n");    return;
+      case 0x28: printf("NUMBER 8\n");    return;
+      case 0x29: printf("NUMBER 9\n");    return;
+      case 0x2C: printf("STANDBY\n");     return;
+      default:
+        ; // Nothing
       }
+
       break;
 
     case 0x23:
       // Set repeat mode
-      printf("REPEAT MODE: ");
-      if ((cmdlen == 2) && (rsplen == 1) && (rsp[0] == 0))
+      QC("REPEAT MODE: ", 2);
+
+      switch(cmd[1])
       {
-        switch(cmd[1])
-        {
-        case 1: printf("Repeat None\n");    return;
-        case 2: printf("Repeat Track\n");   return;
-        case 3: printf("Repeat All\n");     return;
-        default:
-          ; // Nothing
-        }
+      case 1: printf("None\n");    return;
+      case 2: printf("Track\n");   return;
+      case 3: printf("All\n");     return;
+      default:
+        ; // Nothing
       }
+
       break;
 
     case 0x2A:
       // Sector. This is issued after the 10 01 (SIDE A/B) command.
       // Presumably the sector can be 1 to 4 inclusive but without 4-sector
       // tapes, we won't know...
-      printf("SECTOR: ");
-      if ((cmdlen ==2) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        printf("%u\n", cmd[1]);
-        return;
-      }
-      break;
+      QC("SECTOR: ", 2);
+
+      printf("%u\n", cmd[1]);
+
+      return;
 
     case 0x2F:
       // Go to track (pdcc only?)
-      printf("GO TO TRACK: ");
-      if ((cmdlen == 3) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        printf("To=%u, [2]=%u\n", cmd[1], cmd[2]);
-        return;
-      }
-      break;
+      QC("GO TO TRACK: ", 3);
+
+      printf("To=%u, [2]=%u\n", cmd[1], cmd[2]);
+
+      return;
 
     case 0x36:
       // Recorder ID. Sent to dig-mcu after reset
-      printf("FRONT PANEL ID: ");
-      if ((cmdlen == 42) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        printstring(cmd + 1, cmd + cmdlen);
-        putc('\n', stdout);
-        return;
-      }
-      break;
+      QC("FRONT PANEL ID: ", 42);
+
+      printstring(cmd + 1, cmd + cmdlen);
+      putc('\n', stdout);
+
+      return;
 
     case 0x37:
       // Search relative from current track.
-      printf("DECK: SEARCH: ");
-      if ((cmdlen == 3) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        printhex(rsp + 1, rsp + 3);
-        fputc('\n', stdout);
-        return;
+      QC("DECK: SEARCH: ", 3);
+
+      printhex(rsp + 1, rsp + 3);
+      fputc('\n', stdout);
+
+      return;
 /*
-        // What the second parameter byte means is not clear, seems to be always 1
-        if (rsp[1] < 100)
-        {
-          // You can search forwards by 1-99 tracks
-          printf("+%u [%02X]\n", rsp[1], rsp[2]);
-          return;
-        }
-        else // if?...
-        {
-          // Searching backwards it uses EE=-0, ED=-1 etc. Weird.
-          printf("-%u [%02X]\n", 0xEE - rsp[1], rsp[2]);
-          return;
-        }
-*/
+      // What the second parameter byte means is not clear, seems to be always 1
+      if (rsp[1] < 100)
+      {
+        // You can search forwards by 1-99 tracks
+        printf("+%u [%02X]\n", rsp[1], rsp[2]);
+        return;
       }
+      else // if?...
+      {
+        // Searching backwards it uses EE=-0, ED=-1 etc. Weird.
+        printf("-%u [%02X]\n", 0xEE - rsp[1], rsp[2]);
+        return;
+      }
+
       break;
+*/
 
     case 0x38:
       // Time mode. This is issued after the TIME command (10 0D)
@@ -337,31 +335,24 @@ void parsebuffer(buf_t *buf, bool valid)
       // command.
       // For ACC's a counter will appear in one of the modes, this also
       // doesn't issue a time mode command.
-      printf("TIME MODE: ");
-      if ((cmdlen == 2) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        switch(cmd[1])
-        {
-        case 1: printf("TOTAL TIME\n");     return; // prerec/dcc/acc
-        case 2: printf("TOT REM TIME\n");   return; // prerec
-        case 3: printf("TRACK TIME\n");     return; // prerec/sudcc
+      QC("TIME MODE: ", 2);
 
-        case 5: printf("REM TIME\n");       return; // non-prerecorded
-        default:
-          ; // Nothing
-        }
+      switch(cmd[1])
+      {
+      case 1: printf("TOTAL TIME\n");     return; // prerec/dcc/acc
+      case 2: printf("TOT REM TIME\n");   return; // prerec
+      case 3: printf("TRACK TIME\n");     return; // prerec/sudcc
+
+      case 5: printf("REM TIME\n");       return; // non-prerecorded
+      default:
+        ; // Nothing
       }
+
       break;
 
     case 0x39:
       // Read DCC. This is issued after inserting a DCC cassette.
-      printf("READ DCC. ");
-      if ((cmdlen == 1) && (rsplen == 1) && (rsp[0] == 0))
-      {
-        fputc('\n', stdout);
-        return;
-      }
-      break;
+      Q("READ DCC.");
 
     case 0x41:
       // Poll status
@@ -373,11 +364,11 @@ void parsebuffer(buf_t *buf, bool valid)
         if ((cmdlen == 1) && (rsplen == sizeof(status)))
         {
           if ( ( status[0] !=          rsp[0])
-            || ((status[1] & 0xF9) != (rsp[1] & 0xF9)) // Those bits change too often while running
+            || ((status[1] & 0xF9) != (rsp[1] & 0xF9)) // Those bits change too often while running. Tachos?
             || ( status[2] !=          rsp[2])
             || ( status[3] !=          rsp[3]))
           {
-            fputs("POLL -> from=", stdout);
+            P("POLL -> from=");
             printhex(status, status + sizeof(status));
             fputs("to=", stdout);
             printhex(rsp, rsp + rsplen);
@@ -418,59 +409,55 @@ void parsebuffer(buf_t *buf, bool valid)
       break;
 
     case 0x44:
-      printf("GET SYSTEM STATUS -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      QR("GET SYSTEM STATUS -> ", 2);
+
+      switch(rsp[1])
       {
-        switch(rsp[1])
-        {
-        case 0x10: printf("CLEAN HEADS\n"); return;
-        default:
-          printf("%u\n", rsp[1]);           return;
-        }
+      case 0x10: printf("CLEAN HEADS\n"); return;
+      default:
+        printf("%u\n", rsp[1]);           return;
       }
-      break;
 
     case 0x46:
       // Get drawer status
-      printf("GET DRAWER STATUS -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      QR("GET DRAWER STATUS -> ", 2);
+
+      switch(rsp[1])
       {
-        switch(rsp[1])
-        {
-        case 1: printf("Closed\n");         return;
-        case 2: printf("Open\n");           return;
-        case 3: printf("Closing\n");        return;
-        case 4: printf("Opening\n");        return;
-        case 5: printf("Blocked\n");        return;
-        case 6: printf("Unknown\n");        return;
-        default:
-          ; // Nothing
-        }
+      case 1: printf("Closed\n");         return;
+      case 2: printf("Open\n");           return;
+      case 3: printf("Closing\n");        return;
+      case 4: printf("Opening\n");        return;
+      case 5: printf("Blocked\n");        return;
+      case 6: printf("Unknown\n");        return;
+      default:
+        ; // Nothing
       }
+
       break;
 
     case 0x49:
       // Get tape type? This is issued right after the drawer finishes closing
-      printf("TAPE TYPE -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      QR("TAPE TYPE -> ", 2);
+
+      switch(rsp[1])
       {
-        switch(rsp[1])
-        {
-        case 0x04: printf("PDCC\n");        return;
-        case 0x42: printf("ACC\n");         return;
-        case 0x44: printf("DCC90(PROT)\n"); return;
-        case 0x4B: printf("DCC90\n");       return;
-        case 0x4C: printf("DCC90\n");       return; // ?
-        default:
-          printf("%02X\n", rsp[1]);         return; // TODO: figure out other tape types
-        }
+      case 0x04: printf("PDCC\n");        return;
+      case 0x42: printf("ACC\n");         return;
+      case 0x44: printf("DCC90(PROT)\n"); return;
+      case 0x4B: printf("DCC90\n");       return;
+      case 0x4C: printf("DCC90\n");       return; // ?
+      default:
+        printf("%02X\n", rsp[1]);         return; // TODO: figure out other tape types
       }
+
       break;
 
     case 0x51:
       // Get long title from [s]udcc
-      printf("GET LONG UDCC TEXT -> ");
-      if ((cmdlen == 2) && (cmd[1] == 0xFA) && (rsplen == 41) && (rsp[0] == 0))
+      QCR("GET LONG UDCC TEXT -> ", 2, 41);
+
+      if (cmd[1] == 0xFA) // E0 is also used when rewinding sudcc to beginning, but returns error
       {
         printstring(rsp + 1, rsp + rsplen);
         putc('\n', stdout);
@@ -480,20 +467,19 @@ void parsebuffer(buf_t *buf, bool valid)
 
     case 0x52:
       // Get long title from pdcc
-      printf("GET LONG PDCC TEXT: ");
-      if ((cmdlen == 2) && (rsplen == 41) && (rsp[0] == 0))
-      {
-        printf("Track %u -> ", cmd[1]);
-        printstring(rsp + 1, rsp + rsplen);
-        putc('\n', stdout);
-        return;
-      }
-      break;
+      QCR("GET LONG PDCC TEXT: ", 2, 41);
+
+      printf("Track %u -> ", cmd[1]);
+      printstring(rsp + 1, rsp + rsplen);
+      putc('\n', stdout);
+
+      return;
 
     case 0x53:
       // Get short title from [s]udcc
-      printf("GET SHORT UDCC TEXT -> ");
-      if ((cmdlen == 2) && (cmd[1] == 0xFA) && (rsplen == 13) && (rsp[0] == 0))
+      QCR("GET SHORT UDCC TEXT -> ", 2, 13);
+
+      if (cmd[1] == 0xFA) // E0 is also used when rewinding sudcc to beginning, but returns error
       {
         printstring(rsp + 1, rsp + rsplen);
         putc('\n', stdout);
@@ -503,66 +489,62 @@ void parsebuffer(buf_t *buf, bool valid)
 
     case 0x54:
       // Get short title from [s]udcc
-      printf("GET SHORT PDCC TEXT: ");
-      if ((cmdlen == 2) && (rsplen == 13) && (rsp[0] == 0))
-      {
-        printf("Track %u -> ", cmd[1]);
-        printstring(rsp + 1, rsp + rsplen);
-        putc('\n', stdout);
-        return;
-      }
-      break;
+      QCR("GET SHORT PDCC TEXT: ", 2, 13);
+
+      printf("Track %u -> ", cmd[1]);
+      printstring(rsp + 1, rsp + rsplen);
+      putc('\n', stdout);
+
+      return;
 
     case 0x55:
       // Get DDU2113 ID. Issued at startup before sending the front panel ID
-      printf("Get DDU ID -> ");
-      if ((cmdlen == 1) && (rsplen == 5) && (rsp[0] == 0))
-      {
-        printhex(rsp + 1, rsp + rsplen);
-        fputc('\n', stdout);
-        return;
-      }
-      break;
+      QR("Get DDU ID -> ", 5);
+
+      printhex(rsp + 1, rsp + rsplen);
+      fputc('\n', stdout);
+
+      return;
 
     case 0x57:
-      // Get Aux Trackinfo state?
-      printf("MARKER TYPE -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      // Get Marker Type?
+      QR("MARKER TYPE -> ", 2);
+
+      switch(rsp[1])
       {
-        switch(rsp[1])
-        {
-        case 0x02: printf("TRACK\n");       return; // ???
-        case 0x03: printf("END SECTOR\n");  return; // ???
-        case 0x0D: 
-        case 0x0E: 
-        default:
-          printf("%02X\n", rsp[1]);
-        }
-        return;
+      case 0x02: printf("TRACK\n");       return;
+      case 0x03: printf("REVERSE\n");     return; // Switch to side B
+      case 0x14: printf("BEGIN SEC\n");   return; // After reversing
+      case 0x07: printf("SKIP +1\n");     return; // Skip marker? Also seen at beginning of 175-recorded tape
+      case 0x0D: printf("INTRO SKIP\n");  return; // Skip over begin of sector 1
+      case 0x0E: 
+      default:
+        printf("%02X\n", rsp[1]);
       }
-      break;
+
+      return;
 
     case 0x58:
       // Get Function State. This is apparently used to update the symbols
       // on the front panel display
-      printf("FUNCTION STATE -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      QR("FUNCTION STATE -> ", 2);
+
+      switch(rsp[1])
       {
-        switch(rsp[1])
-        {
-        case 0x02: printf("[]\n");          return; // Stop
-        case 0x03: printf("...\n");         return; // Reading
-        case 0x04: printf(">\n");           return; // Play
-        case 0x0A: printf(">>\n");          return; // FFWD (sector)
-        case 0x0B: printf("<<\n");          return; // Rewind (sector)
-        case 0x11: printf(">>|\n");         return; // Search forwards
-        case 0x12: printf("|<<\n");         return; // Search backwards
-        default:
-          printf("%u\n", rsp[1]);           return; // TODO: decode other codes
-        }
-        return;
+      case 0x02: printf("[]\n");          return; // Stop
+      case 0x03: printf("...\n");         return; // Reading
+      case 0x04: printf(">\n");           return; // Play
+      case 0x0A: printf(">>\n");          return; // FFWD (sector)
+      case 0x0B: printf("<<\n");          return; // Rewind (sector)
+      case 0x11: printf(">>|\n");         return; // Search forwards
+      case 0x12: printf("|<<\n");         return; // Search backwards
+      case 0x15: printf("(<<)\n");        return; // Search arriving at track
+      case 0x16: printf("(>>)\n");        return; // Search arriving at track
+      default:
+        printf("%02X\n", rsp[1]);         return; // TODO: decode other codes
       }
-      break;
+
+      return;
 
     case 0x5B:
       // Set something (at search time). cmdlen=2 rsplen=4
@@ -573,66 +555,62 @@ void parsebuffer(buf_t *buf, bool valid)
       // This is the positive or negative number that's shown in the track
       // display during search. It also gets polled when playing past a
       // marker.
-      printf("GET TARGET TRACK -> ");
-      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
-      {
-        printf("%d\n", rsp[1]);           return;
-        return;
-      }
-      break;
+      QR("GET TARGET TRACK -> ", 2);
+
+      printf("%d\n", rsp[1]);           return;
+
+      return;
 
     case 0x5E:
       // VU meters, 2 bytes between 00-5F. 5F (95 decimal) is silence.
-      // So values are probably negative decibels for left and right.
-      //if ((cmdlen == 1) && (rsplen == 3) && (!memcmp(prsp, "\0\x5F\x5F", rsplen)))
-      {
-        return;
-      }
-      break;
+      // Values are negative decibels for left and right.
+      //QR("VU", 3);
+
+      //printf("-%u -%u\n", rsp[1], rsp[2]);
+
+      return;
 
     case 0x60:
-      // Get Time (and state?) from deck controller
+      // Get Time (and state?) from deck controller. All values in BCD, big endian.
       // byte 0=error 00=ok
       // byte 1=status, 8=play?
       // byte 2=track
-      // byte 3=?
-      // byte 4/5=time in BCD, mm/ss
+      // byte 3/4/5=time in BCD, hh/mm/ss. Negative is indicated in hours-byte; don't remember how :)
       // byte 6=?
-      // byte 7/8=tape counter in BCD Big-endian, 0-9999 
+      // byte 7/8=tape counter, 0-9999 
       // byte 9=?
       {
-#if 0
-        printf("Time -> Track %u Time %02X:%02X Counter %02X%02X [1=%02X 3=%02X 6=%02X 9=%02X]\n", 
-          rsp[2], rsp[4], rsp[5], rsp[7], rsp[8], 
-          rsp[1], rsp[3], rsp[6], rsp[9]);
-#else
         static uint8_t track;
 
+        // Comment the next line out to print time continuously.
+        // It's a little chatty though...
         if (rsp[2] != track)
         {
-          printf("Time -> Track %u\n", rsp[2]);
+          P("Time -> ");
+          printf("Track %02X Time %02X:%02X:%02X Counter %02X%02X [1=%02X 6=%02X 9=%02X]\n", 
+            rsp[2], rsp[3], rsp[4], rsp[5], rsp[7], rsp[8], 
+            rsp[1], rsp[6], rsp[9]);
+
           track = rsp[2];
         }
-#endif
       }
       return;
 
     case 0x61:
       // Get tape info for prerecorded tape
-      printf("PREREC TAPE INFO -> ");
-      if ((cmdlen == 1) && (rsplen == 6) && (rsp[0] == 0))
-      {
-        printf("[1]=0x%02X Tracks=%02X Total time=%02X:%02X:%02X\n",
-          rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
-        return;
-      }
-      break;
+      QR("PREREC TAPE INFO -> ", 6);
+
+      printf("[1]=0x%02X Tracks=%02X Total time=%02X:%02X:%02X\n",
+        rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
+
+      return;
 
     default:
       ;// Nothing
     }
   }
 
+dump:
   // If we got here, we don't understand the command. Just dump it.
   // Note, we don't dump the checksums.
   printhex(cmd, cmd + cmdlen); // Command
@@ -648,19 +626,12 @@ int main(void)
 {
   atmel_start_init();
 
-  // Redirect stdio to the EDBG SPI bus.
-  // Atmel Start doesn't let us configure the SAMC21N Xplained Pro this way
-  // so we configure it in Start to use the EDBG serial port and reconfigure
-  // it here.
-  {
-    struct io_descriptor *spi_edbg;
+  // Redirect stdio to the EXT3 SPI port.
+  // This port is connected to the EDBG chip but also to other devices.
+  // See the jg_stdio_redirect.c module for info why the module is needed.
+  jg_stdio_redirect_init(&SPI_EXT3, SPI_EDBG_SS);
 
-    printf("NOTE: Debug output is on EDBG SPI bus\n");
-
-    spi_m_sync_get_io_descriptor(&SPI_EDBG, &spi_edbg);
-    stdio_io_init(spi_edbg);
-    spi_m_sync_enable(&SPI_EDBG);
-  }
+  printf("\nFront panel monitor running\n");
 
   ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
   ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
@@ -675,8 +646,6 @@ int main(void)
   spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_RX, (FUNC_PTR)rsp_rx_callback);
   spi_s_async_enable(&SPI_EXT1);
   spi_s_async_enable(&SPI_EXT2);
-
-  printf("\nFront panel monitor\n");
 
   uint8_t checksum = 0;
   bool valid = true;

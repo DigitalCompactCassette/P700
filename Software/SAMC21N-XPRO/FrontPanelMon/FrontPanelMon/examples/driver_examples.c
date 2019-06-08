@@ -75,15 +75,15 @@ void SPI_EXT2_example(void)
 }
 
 /**
- * Example of using SPI_EDBG to write "Hello World" using the IO abstraction.
+ * Example of using SPI_EXT3 to write "Hello World" using the IO abstraction.
  */
-static uint8_t example_SPI_EDBG[12] = "Hello World!";
+static uint8_t example_SPI_EXT3[12] = "Hello World!";
 
-void SPI_EDBG_example(void)
+void SPI_EXT3_example(void)
 {
 	struct io_descriptor *io;
-	spi_m_sync_get_io_descriptor(&SPI_EDBG, &io);
+	spi_m_sync_get_io_descriptor(&SPI_EXT3, &io);
 
-	spi_m_sync_enable(&SPI_EDBG);
-	io_write(io, example_SPI_EDBG, 12);
+	spi_m_sync_enable(&SPI_EXT3);
+	io_write(io, example_SPI_EXT3, 12);
 }

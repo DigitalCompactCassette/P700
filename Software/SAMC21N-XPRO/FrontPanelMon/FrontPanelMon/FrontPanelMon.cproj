@@ -236,7 +236,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
@@ -275,7 +274,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
@@ -298,7 +296,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
@@ -337,7 +334,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
@@ -377,7 +373,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
@@ -401,7 +396,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
@@ -447,9 +441,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="config\RTE_Components.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="config\stdio_redirect_config.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Device_Startup\startup_samc21.c">
@@ -797,25 +788,13 @@
     <Compile Include="hri\hri_wdt_c21n.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="jg_stdio_redirect.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="jg_stdio_redirect.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="main.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_redirect\gcc\read.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_redirect\gcc\write.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_redirect\stdio_io.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_redirect\stdio_io.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_start.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="stdio_start.h">
       <SubType>compile</SubType>
     </Compile>
   </ItemGroup>
@@ -841,8 +820,6 @@
     <Folder Include="hpl\port\" />
     <Folder Include="hpl\sercom\" />
     <Folder Include="hri\" />
-    <Folder Include="stdio_redirect\" />
-    <Folder Include="stdio_redirect\gcc\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Device_Startup\samc21n18a_flash.ld">

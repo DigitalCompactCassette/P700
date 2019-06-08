@@ -33,7 +33,7 @@ extern struct spi_s_async_descriptor SPI_EXT1;
 extern struct usart_sync_descriptor SER_EDBG;
 
 extern struct spi_s_async_descriptor SPI_EXT2;
-extern struct spi_m_sync_descriptor  SPI_EDBG;
+extern struct spi_m_sync_descriptor  SPI_EXT3;
 
 void SPI_EXT1_PORT_init(void);
 void SPI_EXT1_CLOCK_init(void);
@@ -47,9 +47,9 @@ void SPI_EXT2_PORT_init(void);
 void SPI_EXT2_CLOCK_init(void);
 void SPI_EXT2_init(void);
 
-void SPI_EDBG_PORT_init(void);
-void SPI_EDBG_CLOCK_init(void);
-void SPI_EDBG_init(void);
+void SPI_EXT3_PORT_init(void);
+void SPI_EXT3_CLOCK_init(void);
+void SPI_EXT3_init(void);
 
 /**
  * \brief Perform system initialization, initialize pins and clocks for
