@@ -138,35 +138,73 @@ void printstring(const uint8_t *begin, const uint8_t *end)
 
 
 //---------------------------------------------------------------------------
+// Print hex data
+void printhex(const uint8_t *begin, const uint8_t *end)
+{
+  for (const uint8_t *s = begin; s != end; s++)
+  {
+    static const char hex[] = "01234567890ABCDEF";
+
+    fputc(hex[*s >>   4], stdout);
+    fputc(hex[*s &  0xF], stdout);
+    fputc(' ', stdout);
+  }
+}
+
+
+//---------------------------------------------------------------------------
 // Parse a buffer
 void parsebuffer(buf_t *buf, bool valid)
 {
+  if ((buf->len < 4) || (buf->rsp < 2))
+  {
+    // We didn't get at least 2 bytes for command and 2 bytes for response.
+    fputs("IGNORING: ", stdout);
+    printhex(buf->buf, buf->buf + buf->len);
+    fputc('\n', stdout);
+    return;
+  }
+
+  // Aliases for improved readability
+  uint8_t *cmd = &buf->buf[0];
+  uint8_t *rsp = &buf->buf[buf->rsp];
+
+  // Lengths without checksum bytes
+  uint8_t cmdlen = buf->rsp - 1;
+  uint8_t rsplen = (buf->len - buf->rsp) - 1;
+
   if (!valid)
   {
-    fputs("CHECKSUM ERROR\n", stdout);
+    // Don't try to interpret something that we already know is wrong
+    fputs("CHECKSUM ERROR: ", stdout);
   }
-  else if ((buf->len > 4) && (buf->rsp >= 2)) // At least one valid byte each, plus checksum bytes
+  else 
   {
-    // Aliases for improved readability
-    uint8_t *cmd = &buf->buf[0];
-    uint8_t *rsp = &buf->buf[buf->rsp];
-
-    // Lengths without checksum bytes
-    uint8_t cmdlen = buf->rsp - 1;
-    uint8_t rsplen = (buf->len - buf->rsp) - 1;
-
-    // Flip first bits. These alternate between subsequent commands and
-    // responses, probably to ensure that the firmware always works on live
-    // data, not on stale data that happens when things stop responding
-    // because of some technical problem.
+    // Reset first bits. These alternate between 1 and 0 on subsequent
+    // commands and responses, probably to ensure that the firmware always
+    // works on live data, not on stale data that happens when things stop
+    // responding because of some technical problem.
     (*cmd) &= 0x7F;
     (*rsp) &= 0x7F;
 
+    // Dump command byte to help navigate the code
+    //printhex(cmd, cmd + 1);
+
     switch(*cmd)
     {
+#define Q(name, wantedcmdlen, wantedrsplen) do { printf(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) break; } while(0)
+#define Q11(name) Q(name, 1, 1);
+
+    case 0x02: Q11("DECK: STOP\n");         return;
+    case 0x03: Q11("DECK: PLAY\n");         return;
+    case 0x05: Q11("DECK: FFWD\n");         return;
+    case 0x06: Q11("DECK: REWIND\n");       return;
+    case 0x0B: Q11("DECK: CLOSE\n");        return;
+    case 0x0C: Q11("DECK: OPEN\n");         return;
+    
     case 0x10:
       // Key or remote command
-      printf("COMMAND: ");
+      printf("KEY/RC: ");
       if ((cmdlen ==2) && (rsplen == 1) && (rsp[0] == 0))
       {
         switch (cmd[1])
@@ -257,12 +295,38 @@ void parsebuffer(buf_t *buf, bool valid)
 
     case 0x36:
       // Recorder ID. Sent to dig-mcu after reset
-      printf("ID: ");
+      printf("FRONT PANEL ID: ");
       if ((cmdlen == 42) && (rsplen == 1) && (rsp[0] == 0))
       {
         printstring(cmd + 1, cmd + cmdlen);
         putc('\n', stdout);
         return;
+      }
+      break;
+
+    case 0x37:
+      // Search relative from current track.
+      printf("DECK: SEARCH: ");
+      if ((cmdlen == 3) && (rsplen == 1) && (rsp[0] == 0))
+      {
+        printhex(rsp + 1, rsp + 3);
+        fputc('\n', stdout);
+        return;
+/*
+        // What the second parameter byte means is not clear, seems to be always 1
+        if (rsp[1] < 100)
+        {
+          // You can search forwards by 1-99 tracks
+          printf("+%u [%02X]\n", rsp[1], rsp[2]);
+          return;
+        }
+        else // if?...
+        {
+          // Searching backwards it uses EE=-0, ED=-1 etc. Weird.
+          printf("-%u [%02X]\n", 0xEE - rsp[1], rsp[2]);
+          return;
+        }
+*/
       }
       break;
 
@@ -289,11 +353,80 @@ void parsebuffer(buf_t *buf, bool valid)
       }
       break;
 
-    case 0x41:
-      // Deck status
-      //if ((cmdlen == 1) && (rsplen == 4) && (!memcmp(rsp, "\0\0\xC0\x41", rsplen)))
+    case 0x39:
+      // Read DCC. This is issued after inserting a DCC cassette.
+      printf("READ DCC. ");
+      if ((cmdlen == 1) && (rsplen == 1) && (rsp[0] == 0))
       {
+        fputc('\n', stdout);
         return;
+      }
+      break;
+
+    case 0x41:
+      // Poll status
+      // This is generated often and is very chatty.
+      // We cache it and only show it when it changes.
+      {
+        static uint8_t status[4] = {0};
+
+        if ((cmdlen == 1) && (rsplen == sizeof(status)))
+        {
+          if ( ( status[0] !=          rsp[0])
+            || ((status[1] & 0xF9) != (rsp[1] & 0xF9)) // Those bits change too often while running
+            || ( status[2] !=          rsp[2])
+            || ( status[3] !=          rsp[3]))
+          {
+            fputs("POLL -> from=", stdout);
+            printhex(status, status + sizeof(status));
+            fputs("to=", stdout);
+            printhex(rsp, rsp + rsplen);
+
+            // Interpret bits
+            if (rsp[1] & 0x01) fputs("SYSTEM ",     stdout); // System (issue Get System State)
+            //if (rsp[1] & 0x02) fputs("(A2) ",       stdout); // ignored; toggles too fast.
+            //if (rsp[1] & 0x04) fputs("(A4) ",       stdout); // ignored; toggles too fast
+            if (rsp[1] & 0x08) fputs("FUNCTION ",   stdout); // Function change? (issue Get Function State)
+            if (rsp[1] & 0x10) fputs("DRAWER ",     stdout); // Drawer change (issue Get Drawer State)
+            if (rsp[1] & 0x20) fputs("EOT ",        stdout); // End of Tape (sector)
+            if (rsp[1] & 0x40) fputs("BOT ",        stdout); // Beginning of Tape (sector)
+            if (rsp[1] & 0x80) fputs("(A80) ",      stdout); // Beginning of Tape (sector)
+
+            if (rsp[2] & 0x01) fputs("(B1) ",       stdout);
+            if (rsp[2] & 0x02) fputs("MARKER ",     stdout); // Marker change (issue Get Marker)
+            if (rsp[2] & 0x04) fputs("(B4) ",       stdout);
+            if (rsp[2] & 0x08) fputs("(B8) ",       stdout);
+            if (rsp[2] & 0x10) fputs("(B10) ",      stdout);
+            if (rsp[2] & 0x20) fputs("(B20) ",      stdout);
+            if (rsp[2] & 0x40) fputs("(B40) ",      stdout);
+            if (rsp[2] & 0x80) fputs("(B80) ",      stdout);
+
+            if (rsp[3] & 0x80) fputs("DECKTIME ",   stdout); // No absolute tape time, using deck time?
+            if (rsp[3] & 0x40) fputs("TAPETIME ",   stdout); // Using tape time code
+            printf("Sector=%u\n", rsp[3] & 3);
+
+            memcpy(status, rsp, sizeof(status));
+          }
+          else
+          {
+            // Nothing changed; don't print anything
+          }
+
+          return;
+        }
+      }
+      break;
+
+    case 0x44:
+      printf("GET SYSTEM STATUS -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        switch(rsp[1])
+        {
+        case 0x10: printf("CLEAN HEADS\n"); return;
+        default:
+          printf("%u\n", rsp[1]);           return;
+        }
       }
       break;
 
@@ -312,6 +445,24 @@ void parsebuffer(buf_t *buf, bool valid)
         case 6: printf("Unknown\n");        return;
         default:
           ; // Nothing
+        }
+      }
+      break;
+
+    case 0x49:
+      // Get tape type? This is issued right after the drawer finishes closing
+      printf("TAPE TYPE -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        switch(rsp[1])
+        {
+        case 0x04: printf("PDCC\n");        return;
+        case 0x42: printf("ACC\n");         return;
+        case 0x44: printf("DCC90(PROT)\n"); return;
+        case 0x4B: printf("DCC90\n");       return;
+        case 0x4C: printf("DCC90\n");       return; // ?
+        default:
+          printf("%02X\n", rsp[1]);         return; // TODO: figure out other tape types
         }
       }
       break;
@@ -362,6 +513,74 @@ void parsebuffer(buf_t *buf, bool valid)
       }
       break;
 
+    case 0x55:
+      // Get DDU2113 ID. Issued at startup before sending the front panel ID
+      printf("Get DDU ID -> ");
+      if ((cmdlen == 1) && (rsplen == 5) && (rsp[0] == 0))
+      {
+        printhex(rsp + 1, rsp + rsplen);
+        fputc('\n', stdout);
+        return;
+      }
+      break;
+
+    case 0x57:
+      // Get Aux Trackinfo state?
+      printf("MARKER TYPE -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        switch(rsp[1])
+        {
+        case 0x02: printf("TRACK\n");       return; // ???
+        case 0x03: printf("END SECTOR\n");  return; // ???
+        case 0x0D: 
+        case 0x0E: 
+        default:
+          printf("%02X\n", rsp[1]);
+        }
+        return;
+      }
+      break;
+
+    case 0x58:
+      // Get Function State. This is apparently used to update the symbols
+      // on the front panel display
+      printf("FUNCTION STATE -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        switch(rsp[1])
+        {
+        case 0x02: printf("[]\n");          return; // Stop
+        case 0x03: printf("...\n");         return; // Reading
+        case 0x04: printf(">\n");           return; // Play
+        case 0x0A: printf(">>\n");          return; // FFWD (sector)
+        case 0x0B: printf("<<\n");          return; // Rewind (sector)
+        case 0x11: printf(">>|\n");         return; // Search forwards
+        case 0x12: printf("|<<\n");         return; // Search backwards
+        default:
+          printf("%u\n", rsp[1]);           return; // TODO: decode other codes
+        }
+        return;
+      }
+      break;
+
+    case 0x5B:
+      // Set something (at search time). cmdlen=2 rsplen=4
+      break;
+
+    case 0x5D:
+      // Get Target Track number
+      // This is the positive or negative number that's shown in the track
+      // display during search. It also gets polled when playing past a
+      // marker.
+      printf("GET TARGET TRACK -> ");
+      if ((cmdlen == 1) && (rsplen == 2) && (rsp[0] == 0))
+      {
+        printf("%d\n", rsp[1]);           return;
+        return;
+      }
+      break;
+
     case 0x5E:
       // VU meters, 2 bytes between 00-5F. 5F (95 decimal) is silence.
       // So values are probably negative decibels for left and right.
@@ -372,6 +591,7 @@ void parsebuffer(buf_t *buf, bool valid)
       break;
 
     case 0x60:
+      // Get Time (and state?) from deck controller
       // byte 0=error 00=ok
       // byte 1=status, 8=play?
       // byte 2=track
@@ -380,13 +600,22 @@ void parsebuffer(buf_t *buf, bool valid)
       // byte 6=?
       // byte 7/8=tape counter in BCD Big-endian, 0-9999 
       // byte 9=?
-/*
-      printf("Time: Track %u Time %02X:%02X Counter %02X%02X [1=%02X 3=%02X 6=%02X 9=%02X]\n", 
-        rsp[2], rsp[4], rsp[5], rsp[7], rsp[8], 
-        rsp[1], rsp[3], rsp[6], rsp[9]);
-*/
+      {
+#if 0
+        printf("Time -> Track %u Time %02X:%02X Counter %02X%02X [1=%02X 3=%02X 6=%02X 9=%02X]\n", 
+          rsp[2], rsp[4], rsp[5], rsp[7], rsp[8], 
+          rsp[1], rsp[3], rsp[6], rsp[9]);
+#else
+        static uint8_t track;
+
+        if (rsp[2] != track)
+        {
+          printf("Time -> Track %u\n", rsp[2]);
+          track = rsp[2];
+        }
+#endif
+      }
       return;
-      break;
 
     case 0x61:
       // Get tape info for prerecorded tape
@@ -402,19 +631,13 @@ void parsebuffer(buf_t *buf, bool valid)
     default:
       ;// Nothing
     }
-
-    for (uint8_t u = 0; u < buf->len - 1; u++)
-    {
-      if (u == buf->rsp - 1)
-      {
-        printf("-- ");
-        continue; // ignore last byte of command
-      }
-
-      printf("%02X ", buf->buf[u] & 0xFF);
-    }
   }
 
+  // If we got here, we don't understand the command. Just dump it.
+  // Note, we don't dump the checksums.
+  printhex(cmd, cmd + cmdlen); // Command
+  fputs("-- ", stdout);
+  printhex(rsp, rsp + rsplen); // Command
   putc('\n', stdout);
 }
 
