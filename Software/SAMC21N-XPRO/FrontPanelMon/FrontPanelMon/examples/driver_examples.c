@@ -37,13 +37,13 @@ void SPI_EXT1_example(void)
 }
 
 /**
- * Example of using EDBG_COM to write "Hello World" using the IO abstraction.
+ * Example of using SER_EDBG to write "Hello World" using the IO abstraction.
  */
-void EDBG_COM_example(void)
+void SER_EDBG_example(void)
 {
 	struct io_descriptor *io;
-	usart_sync_get_io_descriptor(&EDBG_COM, &io);
-	usart_sync_enable(&EDBG_COM);
+	usart_sync_get_io_descriptor(&SER_EDBG, &io);
+	usart_sync_enable(&SER_EDBG);
 
 	io_write(io, (uint8_t *)"Hello World!", 12);
 }
@@ -72,4 +72,18 @@ void SPI_EXT2_example(void)
 	spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_TX, (FUNC_PTR)complete_cb_SPI_EXT2);
 	spi_s_async_enable(&SPI_EXT2);
 	io_write(io, example_SPI_EXT2, 12);
+}
+
+/**
+ * Example of using SPI_EDBG to write "Hello World" using the IO abstraction.
+ */
+static uint8_t example_SPI_EDBG[12] = "Hello World!";
+
+void SPI_EDBG_example(void)
+{
+	struct io_descriptor *io;
+	spi_m_sync_get_io_descriptor(&SPI_EDBG, &io);
+
+	spi_m_sync_enable(&SPI_EDBG);
+	io_write(io, example_SPI_EDBG, 12);
 }

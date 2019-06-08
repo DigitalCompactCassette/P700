@@ -26,24 +26,30 @@ extern "C" {
 #include <hal_usart_sync.h>
 
 #include <hal_spi_s_async.h>
+#include <hal_spi_m_sync.h>
 
 extern struct spi_s_async_descriptor SPI_EXT1;
 
-extern struct usart_sync_descriptor EDBG_COM;
+extern struct usart_sync_descriptor SER_EDBG;
 
 extern struct spi_s_async_descriptor SPI_EXT2;
+extern struct spi_m_sync_descriptor  SPI_EDBG;
 
 void SPI_EXT1_PORT_init(void);
 void SPI_EXT1_CLOCK_init(void);
 void SPI_EXT1_init(void);
 
-void EDBG_COM_PORT_init(void);
-void EDBG_COM_CLOCK_init(void);
-void EDBG_COM_init(void);
+void SER_EDBG_PORT_init(void);
+void SER_EDBG_CLOCK_init(void);
+void SER_EDBG_init(void);
 
 void SPI_EXT2_PORT_init(void);
 void SPI_EXT2_CLOCK_init(void);
 void SPI_EXT2_init(void);
+
+void SPI_EDBG_PORT_init(void);
+void SPI_EDBG_CLOCK_init(void);
+void SPI_EDBG_init(void);
 
 /**
  * \brief Perform system initialization, initialize pins and clocks for

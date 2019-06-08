@@ -425,6 +425,20 @@ int main(void)
 {
   atmel_start_init();
 
+  // Redirect stdio to the EDBG SPI bus.
+  // Atmel Start doesn't let us configure the SAMC21N Xplained Pro this way
+  // so we configure it in Start to use the EDBG serial port and reconfigure
+  // it here.
+  {
+    struct io_descriptor *spi_edbg;
+
+    printf("NOTE: Debug output is on EDBG SPI bus\n");
+
+    spi_m_sync_get_io_descriptor(&SPI_EDBG, &spi_edbg);
+    stdio_io_init(spi_edbg);
+    spi_m_sync_enable(&SPI_EDBG);
+  }
+
   ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
   ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
 

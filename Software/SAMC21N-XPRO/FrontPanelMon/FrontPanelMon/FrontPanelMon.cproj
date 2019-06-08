@@ -488,6 +488,9 @@
     <Compile Include="hal\include\hal_sleep.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="hal\include\hal_spi_m_sync.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="hal\include\hal_spi_s_async.h">
       <SubType>compile</SubType>
     </Compile>
@@ -542,6 +545,9 @@
     <Compile Include="hal\include\hpl_spi_async.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="hal\include\hpl_spi_dma.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="hal\include\hpl_spi_m_async.h">
       <SubType>compile</SubType>
     </Compile>
@@ -585,6 +591,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="hal\src\hal_sleep.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hal\src\hal_spi_m_sync.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="hal\src\hal_spi_s_async.c">

@@ -21,7 +21,7 @@ middlewares:
     functionality: STDIO_Redirect
     api: STDIO:Redirect:IO
     dependencies:
-      Target IO: EDBG_COM
+      Target IO: SER_EDBG
 drivers:
   DMAC:
     user_label: DMAC
@@ -600,8 +600,8 @@ drivers:
         configuration:
           core_gclk_selection: Generic clock generator 0
           slow_gclk_selection: Generic clock generator 3
-  EDBG_COM:
-    user_label: EDBG_COM
+  SER_EDBG:
+    user_label: SER_EDBG
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM4::driver_config_definition::UART::HAL:Driver:USART.Sync
     functionality: USART
     api: HAL:Driver:USART_Sync
@@ -700,6 +700,50 @@ drivers:
         configuration:
           core_gclk_selection: Generic clock generator 0
           slow_gclk_selection: Generic clock generator 3
+  SPI_EDBG:
+    user_label: SPI_EDBG
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM7::driver_config_definition::SPI.Master::HAL:Driver:SPI.Master.Sync
+    functionality: SPI
+    api: HAL:Driver:SPI_Master_Sync
+    configuration:
+      spi_master_advanced: false
+      spi_master_arch_cpha: Sample input on leading edge
+      spi_master_arch_cpol: SCK is low when idle
+      spi_master_arch_dbgstop: Keep running
+      spi_master_arch_dord: MSB first
+      spi_master_arch_ibon: In data stream
+      spi_master_arch_runstdby: false
+      spi_master_baud_rate: 1000000
+      spi_master_character_size: 8 bits
+      spi_master_dummybyte: 511
+      spi_master_rx_enable: true
+    optional_signals: []
+    variant:
+      specification: TXPO=1, RXPO=0
+      required_signals:
+      - name: SERCOM7/PAD/0
+        pad: PC12
+        label: MISO
+      - name: SERCOM7/PAD/2
+        pad: PC14
+        label: MOSI
+      - name: SERCOM7/PAD/3
+        pad: PC11
+        label: SCK
+    clocks:
+      domain_group:
+        nodes:
+        - name: Core
+          input: Generic clock generator 0
+          external: false
+          external_frequency: 0
+        - name: Slow
+          input: Generic clock generator 3
+          external: false
+          external_frequency: 0
+        configuration:
+          core_gclk_selection: Generic clock generator 0
+          slow_gclk_selection: Generic clock generator 3
 pads:
   LED0:
     name: PC05
@@ -724,6 +768,30 @@ pads:
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PB12
     mode: Digital output
     user_label: DGI_GPIO0
+    configuration: null
+  SPE_EDBG_SS:
+    name: PC09
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC09
+    mode: Digital output
+    user_label: SPE_EDBG_SS
+    configuration: null
+  PC11:
+    name: PC11
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC11
+    mode: Digital output
+    user_label: PC11
+    configuration: null
+  PC12:
+    name: PC12
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC12
+    mode: Digital input
+    user_label: PC12
+    configuration: null
+  PC14:
+    name: PC14
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC14
+    mode: Digital output
+    user_label: PC14
     configuration: null
   PA18:
     name: PA18

@@ -14,7 +14,7 @@ extern "C" {
 
 void SPI_EXT1_example(void);
 
-void EDBG_COM_example(void);
+void SER_EDBG_example(void);
 
 void SPI_EXT2_example(void);
 

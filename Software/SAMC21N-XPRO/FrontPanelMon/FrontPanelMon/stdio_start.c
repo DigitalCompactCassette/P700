@@ -18,6 +18,6 @@ void STDIO_REDIRECT_0_example(void)
 void stdio_redirect_init(void)
 {
 
-	usart_sync_enable(&EDBG_COM);
-	stdio_io_init(&EDBG_COM.io);
+	usart_sync_enable(&SER_EDBG);
+	stdio_io_init(&SER_EDBG.io);
 }
