@@ -56,6 +56,8 @@ typedef struct
 } buf_t;
 
 
+bool chattymode = false;
+
 struct io_descriptor *spi_cmd; // From front panel
 struct io_descriptor *spi_rsp; // From dig-mcu
 
@@ -126,7 +128,10 @@ bool check_button(void)
     // Button released
     if (count == DEBOUNCE_COUNT)
     {
-      reinit();
+      //reinit();
+
+      chattymode = !chattymode;
+      gpio_set_pin_level(LED0, chattymode);
     }
 
     count = 0;
@@ -180,6 +185,24 @@ void printhex(const uint8_t *begin, const uint8_t *end)
 
 
 //---------------------------------------------------------------------------
+// Print VU
+//
+// VU values are from 0 to 95 and represent the negative dB value of the
+// audio channel: 0 is the loudest (0dB), 95 is the quietest (-95dB).
+inline const char *vustring(uint8_t vu)
+{
+  const char *vubar = "================";
+
+  if (vu > 95)
+  {
+    vu = 95;
+  }
+
+  return vubar + (((uint)vu * 16) / 96);
+}
+
+
+//---------------------------------------------------------------------------
 // Parse a buffer
 void parsebuffer(buf_t *buf, bool valid)
 {
@@ -206,14 +229,6 @@ void parsebuffer(buf_t *buf, bool valid)
   {
     // Don't try to interpret something that we already know is wrong
     fputs("CHECKSUM ERROR: ", stdout);
-  }
-  else if (1)
-  {
-    printhex(buf->buf, buf->buf + buf->rsp);
-    fputs("-- ", stdout);
-    printhex(buf->buf + buf->rsp, buf->buf + buf->len);
-    printf("\n");
-    return;
   }
   else
   {
@@ -648,9 +663,12 @@ void parsebuffer(buf_t *buf, bool valid)
     case 0x5E:
       // VU meters, 2 bytes between 00-5F. 5F (95 decimal) is silence.
       // Values are negative decibels for left and right.
-      //QR("VU", 3);
+      if (chattymode)
+      {
+        QR("VU -> ", 3);
 
-      //printf("-%u -%u\n", rsp[1], rsp[2]);
+        printf("%16s %-16s\n", vustring(rsp[1]), vustring(rsp[2]));
+      }
 
       return;
 
@@ -666,9 +684,7 @@ void parsebuffer(buf_t *buf, bool valid)
       {
         static uint8_t track;
 
-        // Comment the next line out to print time continuously.
-        // It's a little chatty though...
-        if (rsp[2] != track)
+        if ((chattymode) || (rsp[2] != track))
         {
           P("Time -> ");
           printf("Track %02X Time %02X:%02X:%02X Counter %02X%02X [1=%02X 6=%02X 9=%02X]\n", 
@@ -762,9 +778,9 @@ int main(void)
         // Note: Interpreting the data may be an expensive operation.
         // That's okay, the receive callbacks will just gather up data
         // into the ringbuffers in the background.
-        gpio_set_pin_level(LED0, true);
+        gpio_toggle_pin_level(LED0);
         parsebuffer(&buffer, valid);
-        gpio_set_pin_level(LED0, false);
+        gpio_toggle_pin_level(LED0);
 
         buffer.len = buffer.rsp = 0;
         checksum = 0;
