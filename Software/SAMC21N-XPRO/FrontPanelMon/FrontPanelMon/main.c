@@ -32,7 +32,7 @@
   For reference, here are the signals on header 1605:
   1: SLAVE_OUT  (serial traffic from dig-mcu to front panel)
   2: GNDD       (digital ground)
-  3: MESSYNC    (message sync, probably used to indicate first byte of cmd?)
+  3: MESSYNC    (message sync, can be used as Slave Select)
   4: SLAVE_IN   (serial traffic from front panel to dig-mcu)
   5: NRESET     (reset)
   6: CLOCK      (serial clock)
@@ -47,45 +47,17 @@
 
 #define DEBOUNCE_COUNT 5
 
-
-//---------------------------------------------------------------------------
-// Check the button and disable the SPI ports if it's pressed.
-//
-// The SPI ports are enabled again when the button is released.
-//
-// Returns true if the function is debouncing the switch input.
-bool check_button(void)
+typedef struct
 {
-  static unsigned count;
+  uint8_t buf[255];
+  uint8_t len; // Total length
+  uint8_t rsp; // Index of response
 
-  if (gpio_get_pin_level(SW0))
-  {
-    // Button released
-    if (count == DEBOUNCE_COUNT)
-    {
-      spi_s_async_enable(&SPI_EXT1);
-      spi_s_async_enable(&SPI_EXT2);
-    }
+} buf_t;
 
-    count = 0;
-  }
-  else
-  {
-    // Button is pressed
-    if (count < DEBOUNCE_COUNT)
-    {
-      count++;
-    }
-    else if (count == DEBOUNCE_COUNT)
-    {
-      spi_s_async_disable(&SPI_EXT2);
-      spi_s_async_disable(&SPI_EXT1);
-    }
-  }
 
-  return (count != 0);
-}
-
+struct io_descriptor *spi_cmd; // From front panel
+struct io_descriptor *spi_rsp; // From dig-mcu
 
 char cmdbuf[256];
 char rspbuf[256];
@@ -115,13 +87,66 @@ void rsp_rx_callback(struct spi_s_async_descriptor *spi)
 }
 
 
-typedef struct
+//---------------------------------------------------------------------------
+// Reinitialize hardware
+void reinit(void)
 {
-  uint8_t buf[255];
-  uint8_t len; // Total length
-  uint8_t rsp; // Index of response
+  atmel_start_init();
 
-} buf_t;
+  // Redirect stdio to the EXT3 SPI port.
+  // This port is connected to the EDBG chip but also to other devices.
+  // See the jg_stdio_redirect.c module for info why the module is needed.
+  jg_stdio_redirect_init(&SPI_EXT3, SPI_EDBG_SS);
+
+  ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
+  ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
+
+  spi_s_async_get_io_descriptor(&SPI_EXT1, &spi_cmd);
+  spi_s_async_get_io_descriptor(&SPI_EXT2, &spi_rsp);
+
+  spi_s_async_register_callback(&SPI_EXT1, SPI_S_CB_RX, (FUNC_PTR)cmd_rx_callback);
+  spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_RX, (FUNC_PTR)rsp_rx_callback);
+  spi_s_async_enable(&SPI_EXT1);
+  spi_s_async_enable(&SPI_EXT2);
+}
+
+
+//---------------------------------------------------------------------------
+// Check the button and disable the SPI ports if it's pressed.
+//
+// The SPI ports are enabled again when the button is released.
+//
+// Returns true if the function is debouncing the switch input.
+bool check_button(void)
+{
+  static unsigned count;
+
+  if (gpio_get_pin_level(SW0))
+  {
+    // Button released
+    if (count == DEBOUNCE_COUNT)
+    {
+      reinit();
+    }
+
+    count = 0;
+  }
+  else
+  {
+    // Button is pressed
+    if (count < DEBOUNCE_COUNT)
+    {
+      count++;
+    }
+    else if (count == DEBOUNCE_COUNT)
+    {
+      spi_s_async_disable(&SPI_EXT2);
+      spi_s_async_disable(&SPI_EXT1);
+    }
+  }
+
+  return (count != 0);
+}
 
 
 //---------------------------------------------------------------------------
@@ -161,8 +186,10 @@ void parsebuffer(buf_t *buf, bool valid)
   if ((buf->len < 4) || (buf->rsp < 2))
   {
     // We didn't get at least 2 bytes for command and 2 bytes for response.
-    printf("IGNORING buf len=%u rsp index=%u: ", buf->len, buf->rsp);
-    printhex(buf->buf, buf->buf + buf->len);
+    printf("IGNORING: ");
+    printhex(buf->buf, buf->buf + buf->rsp);
+    fputs("-- ", stdout);
+    printhex(buf->buf + buf->rsp, buf->buf + buf->len);
     fputc('\n', stdout);
     return;
   }
@@ -180,7 +207,15 @@ void parsebuffer(buf_t *buf, bool valid)
     // Don't try to interpret something that we already know is wrong
     fputs("CHECKSUM ERROR: ", stdout);
   }
-  else 
+  else if (1)
+  {
+    printhex(buf->buf, buf->buf + buf->rsp);
+    fputs("-- ", stdout);
+    printhex(buf->buf + buf->rsp, buf->buf + buf->len);
+    printf("\n");
+    return;
+  }
+  else
   {
     // Reset first bits. These alternate between 1 and 0 on subsequent
     // commands and responses, probably to ensure that the firmware always
@@ -199,7 +234,7 @@ void parsebuffer(buf_t *buf, bool valid)
 #define QCR(name, wantedcmdlen, wantedrsplen) do { P(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) goto dump; } while(0)
 #define QC(name, wantedcmdlen) QCR(name, wantedcmdlen, 1) // Command with parameters, no return data
 #define QR(name, wantedrsplen) QCR(name, 1, wantedrsplen) // Command without parameters, has return data
-#define Q(name) QCR(name , 1, 1); do { fputc('\n', stdout); return; } while(0) // Command with no parameters, no return data
+#define Q(name) QCR(name, 1, 1); do { fputc('\n', stdout); return; } while(0) // Command with no parameters, no return data
 
     case 0x02: Q("DECK: STOP");
     case 0x03: Q("DECK: PLAY");
@@ -214,46 +249,63 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch (cmd[1])
       {
-      case 0x01: printf("SIDE A/B\n");    return;
-      case 0x02: printf("OPEN/CLOSE\n");  return;
-      case 0x03: printf("EDIT\n");        return;
-      case 0x04: printf("REC/PAUSE\n");   return;
-      case 0x05: printf("STOP\n");        return;
-      case 0x06: printf("REPEAT\n");      return;
-      case 0x07: printf("DOLBY\n");       return;
-      case 0x08: printf("SCROLL\n");      return;
-      case 0x09: printf("RECLEVEL-\n");   return;
-      case 0x0A: printf("APPEND\n");      return;
-      case 0x0B: printf("PLAY\n");        return;
-      case 0x0C: printf("PRESETS\n");     return;
-      case 0x0D: printf("TIME\n");        return;
-      case 0x0E: printf("TEXT\n");        return;
-      case 0x0F: printf("RECLEVEL+\n");   return;
-      case 0x10: printf("RECORD\n");      return;
-      case 0x11: printf("NEXT\n");        return;
-      case 0x12: printf("PREV\n");        return;
+      // Note: These numbers correspond to the numbers shown on the front
+      // panel during the Key Test program of the Service Mode
+      case 0x01: printf("SIDE A/B\n");      return;
+      case 0x02: printf("OPEN/CLOSE\n");    return;
+      case 0x03: printf("EDIT\n");          return;
+      case 0x04: printf("REC/PAUSE\n");     return;
+      case 0x05: printf("STOP\n");          return;
+      case 0x06: printf("REPEAT\n");        return;
+      case 0x07: printf("DOLBY\n");         return;
+      case 0x08: printf("SCROLL\n");        return;
+      case 0x09: printf("RECLEVEL-\n");     return;
+      case 0x0A: printf("APPEND\n");        return;
+      case 0x0B: printf("PLAY\n");          return;
+      case 0x0C: printf("PRESETS\n");       return;
+      case 0x0D: printf("TIME\n");          return;
+      case 0x0E: printf("TEXT\n");          return;
+      case 0x0F: printf("RECLEVEL+\n");     return;
+      case 0x10: printf("RECORD\n");        return;
+      case 0x11: printf("NEXT\n");          return;
+      case 0x12: printf("PREV\n");          return;
 
       // Remote control
       // "PAUSE" and "COUNTER RESET" and "WRITE MARK" don't show up
       //
-      // BUG? If you press TEXT on the remote control repeatedly, when it
-      // goes to ARTIST, it says NO TEXT INFO (instead of the artist)
-      // and then the front panel starts sending 51 03 to the dig MCU
-      // repeatedly.
-      case 0x1C: printf("FFWD\n");        return;
-      case 0x1D: printf("EJECT\n");       return; // Duplicate of 10 02
-      case 0x1F: printf("REWIND\n");      return;
-      case 0x20: printf("NUMBER 0\n");    return;
-      case 0x21: printf("NUMBER 1\n");    return;
-      case 0x22: printf("NUMBER 2\n");    return;
-      case 0x23: printf("NUMBER 3\n");    return;
-      case 0x24: printf("NUMBER 4\n");    return;
-      case 0x25: printf("NUMBER 5\n");    return;
-      case 0x26: printf("NUMBER 6\n");    return;
-      case 0x27: printf("NUMBER 7\n");    return;
-      case 0x28: printf("NUMBER 8\n");    return;
-      case 0x29: printf("NUMBER 9\n");    return;
-      case 0x2C: printf("STANDBY\n");     return;
+      // NOTE: Numbers in comments are the codes shown in the service manual
+      // for the key test program
+      case 0x1C: printf("RC FFWD\n");       return; // 052?
+      case 0x1D: printf("RC OPEN/CLOSE\n"); return; // 045
+      case 0x1F: printf("RC REWIND\n");     return; // 050?
+      case 0x20: printf("RC 0\n");          return; // 000
+      case 0x21: printf("RC 1\n");          return; // 001
+      case 0x22: printf("RC 2\n");          return; // 002
+      case 0x23: printf("RC 3\n");          return; // 003
+      case 0x24: printf("RC 4\n");          return; // 004
+      case 0x25: printf("RC 5\n");          return; // 005
+      case 0x26: printf("RC 6\n");          return; // 006
+      case 0x27: printf("RC 7\n");          return; // 007
+      case 0x28: printf("RC 8\n");          return; // 008
+      case 0x29: printf("RC 9\n");          return; // 009
+      case 0x2C: printf("RC STANDBY\n");    return; // 012
+      // I couldn't reproduce the following codes from the service manual
+      // with my Logitech Harmony universal remote control. I may verify
+      // these later.
+                                                    // 011 TIME
+                                                    // 047 SIDE A/B
+                                                    // 028 REPEAT
+                                                    // 054 STOP
+                                                    // 053 PLAY
+                                                    // 040 REC SELECT/PAUSE
+                                                    // 117 APPEND
+                                                    // 055 RECORD
+                                                    // 121 EDIT
+                                                    // 103 REC LEVEL -
+                                                    // 102 REC LEVEL +
+                                                    // 015 SCROLL/DEMO
+                                                    // 122 TEXT
+                                                    // 063 DCC
       default:
         ; // Nothing
       }
@@ -381,7 +433,7 @@ void parsebuffer(buf_t *buf, bool valid)
             if (rsp[1] & 0x10) fputs("DRAWER ",     stdout); // Drawer change (issue Get Drawer State)
             if (rsp[1] & 0x20) fputs("EOT ",        stdout); // End of Tape (sector)
             if (rsp[1] & 0x40) fputs("BOT ",        stdout); // Beginning of Tape (sector)
-            if (rsp[1] & 0x80) fputs("(A80) ",      stdout); // Beginning of Tape (sector)
+            if (rsp[1] & 0x80) fputs("(A80) ",      stdout);
 
             if (rsp[2] & 0x01) fputs("(B1) ",       stdout);
             if (rsp[2] & 0x02) fputs("MARKER ",     stdout); // Marker change (issue Get Marker)
@@ -442,13 +494,45 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x04: printf("PDCC\n");        return;
-      case 0x42: printf("ACC\n");         return;
-      case 0x44: printf("DCC90(PROT)\n"); return;
-      case 0x4B: printf("DCC90\n");       return;
-      case 0x4C: printf("DCC90\n");       return; // ?
+      // Meanings of bits:
+      //  0x01: No cassette
+      //  0x02: Chrome
+      //  0x04: DCC
+      //  0x08: Recording Allowed
+      //  0x10: Length Hole "3" (45/75/105/Undefined)
+      //  0x20: Length Hole "4" (45/60/105/120)
+      //  0x40: Length Hole "5" (45/60/75/90)
+      // Length can be ("5"/"4"/"3"):
+      //  45  minutes  (1/1/1)
+      //  60  minutes  (1/1/0)
+      //  75  minutes  (1/0/1)
+      //  90  minutes  (1/0/0)
+      //  105 minutes  (0/1/1)
+      //  120 minutes  (0/1/0)
+      //  Undefined    (0/0/1) Reserved
+      //  Undefined    (0/0/0) Also used for prerecorded DCC
+      // These numbers correspond to the numbers that are shown by the
+      // "Switches Test" program in Service Mode
+      case 0x00: printf("ACC FERRO\n");   return; // 000
+      case 0x02: printf("ACC CHROME\n");  return; // 002
+      case 0x04: printf("PDCC\n");        return; // 004
+      case 0x14: printf("UDCC(PROT)\n");  return; // 020
+      case 0x1C: printf("UDCC\n");        return; // 028
+      case 0x24: printf("DCC120(PROT)\n");return; // 036
+      case 0x2C: printf("DCC120\n");      return; // 044
+      case 0x34: printf("DCC105(PROT)\n");return; // 052
+      case 0x3C: printf("DCC105\n");      return; // 060
+      case 0x44: printf("DCC90(PROT)\n"); return; // 068
+      case 0x4C: printf("DCC90\n");       return; // 076
+      case 0x54: printf("DCC75(PROT)\n"); return; // 084
+      case 0x5C: printf("DCC75\n");       return; // 092
+      case 0x64: printf("DCC60(PROT)\n"); return; // 100
+      case 0x6C: printf("DCC60\n");       return; // 108
+      case 0x74: printf("DCC45(PROT)\n"); return; // 116
+      case 0x7B: printf("NO CASSETTE\n"); return; // 123
+      case 0x7C: printf("DCC45\n");       return; // 124
       default:
-        printf("%02X\n", rsp[1]);         return; // TODO: figure out other tape types
+        printf("%02X\n", rsp[1]);         return;
       }
 
       break;
@@ -514,9 +598,9 @@ void parsebuffer(buf_t *buf, bool valid)
       {
       case 0x02: printf("TRACK\n");       return;
       case 0x03: printf("REVERSE\n");     return; // Switch to side B
-      case 0x14: printf("BEGIN SEC\n");   return; // After reversing
       case 0x07: printf("SKIP +1\n");     return; // Skip marker? Also seen at beginning of 175-recorded tape
       case 0x0D: printf("INTRO SKIP\n");  return; // Skip over begin of sector 1
+      case 0x14: printf("BEGIN SEC\n");   return; // After reversing
       case 0x0E: 
       default:
         printf("%02X\n", rsp[1]);
@@ -624,28 +708,9 @@ dump:
 // Main application
 int main(void)
 {
-  atmel_start_init();
-
-  // Redirect stdio to the EXT3 SPI port.
-  // This port is connected to the EDBG chip but also to other devices.
-  // See the jg_stdio_redirect.c module for info why the module is needed.
-  jg_stdio_redirect_init(&SPI_EXT3, SPI_EDBG_SS);
+  reinit();
 
   printf("\nFront panel monitor running\n");
-
-  ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
-  ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
-
-  struct io_descriptor *spi_cmd; // From front panel
-  struct io_descriptor *spi_rsp; // From dig-mcu
-
-  spi_s_async_get_io_descriptor(&SPI_EXT1, &spi_cmd);
-  spi_s_async_get_io_descriptor(&SPI_EXT2, &spi_rsp);
-
-  spi_s_async_register_callback(&SPI_EXT1, SPI_S_CB_RX, (FUNC_PTR)cmd_rx_callback);
-  spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_RX, (FUNC_PTR)rsp_rx_callback);
-  spi_s_async_enable(&SPI_EXT1);
-  spi_s_async_enable(&SPI_EXT2);
 
   uint8_t checksum = 0;
   bool valid = true;
@@ -680,7 +745,7 @@ int main(void)
     // That means we get out of sync if the first byte from either side is
     // 0xFF but this is very unlikely and probably easy to recognize. For
     // one thing, the checksum will not match if we get it wrong.
-    if (cmdbyte != 0xFF)
+    if ((cmdbyte != 0xFF) && (cmdbyte != 0xEE))
     {
       // Data came from front panel
 
@@ -706,19 +771,21 @@ int main(void)
         valid = true;
       }
 
-      checksum += (rxbyte = cmdbyte);
+      rxbyte = cmdbyte;
     }
-    else if (rspbyte != 0xFF)
+    else if ((rspbyte != 0xFF) && (rspbyte != 0xEE))
     {
       // Data came from dig-mcu
 
       // Ignore the data if we don't have a command yet.
       // There's no point trying to catch and interpret a response without
       // the command.
+/*
       if (!buffer.len)
       {
         continue;
       }
+*/
 
       // If this is the first response byte, mark it
       if (!buffer.rsp)
@@ -734,17 +801,21 @@ int main(void)
         checksum = 0;
       }
 
-      checksum += (rxbyte = rspbyte);
+      rxbyte = rspbyte;
     }
     else
     {
       // Both bytes were 0xFF, don't change direction
-      checksum += (rxbyte = 0xFF);
+      rxbyte = 0xFF;
     }
+
+    checksum += rxbyte;
 
     if (buffer.len < sizeof(buffer.buf))
     {
       buffer.buf[buffer.len++] = rxbyte;
+//      buffer.buf[buffer.len++] = cmdbyte;
+//      buffer.buf[buffer.len++] = rspbyte;
     }
   }
 }

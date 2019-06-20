@@ -28,7 +28,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
@@ -68,7 +67,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
@@ -92,7 +90,6 @@
       <Value>../hpl/port</Value>
       <Value>../hpl/sercom</Value>
       <Value>../hri</Value>
-      <Value>../stdio_redirect</Value>
       <Value>%24(PackRepoDir)\Atmel\SAMC21_DFP\1.2.176\samc21n\include</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
