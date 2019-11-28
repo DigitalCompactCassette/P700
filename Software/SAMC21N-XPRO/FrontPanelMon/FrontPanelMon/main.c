@@ -450,7 +450,7 @@ void parsebuffer(buf_t *buf, bool valid)
             if (rsp[1] & 0x40) fputs("BOT ",        stdout); // Beginning of Tape (sector)
             if (rsp[1] & 0x80) fputs("(A80) ",      stdout);
 
-            if (rsp[2] & 0x01) fputs("(B1) ",       stdout);
+            if (rsp[2] & 0x01) fputs("LYRICS ",     stdout); // Lyrics (issue Get DCC Long Text)
             if (rsp[2] & 0x02) fputs("MARKER ",     stdout); // Marker change (issue Get Marker)
             if (rsp[2] & 0x04) fputs("(B4) ",       stdout);
             if (rsp[2] & 0x08) fputs("(B8) ",       stdout);
@@ -480,9 +480,10 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x10: printf("CLEAN HEADS\n"); return;
+      case 0x10: printf("CLEAN HEADS\n");   return;
+      case 0x1F: printf("POWER FAIL\n");    return;
       default:
-        printf("%u\n", rsp[1]);           return;
+        printf("%02X\n", rsp[1]);           return;
       }
 
     case 0x46:
@@ -526,8 +527,8 @@ void parsebuffer(buf_t *buf, bool valid)
       //  120 minutes  (0/1/0)
       //  Undefined    (0/0/1) Reserved
       //  Undefined    (0/0/0) Also used for prerecorded DCC
-      // These numbers correspond to the numbers that are shown by the
-      // "Switches Test" program in Service Mode
+      // These numbers correspond to the decimal numbers that are shown by
+      // the "Switches Test" program in Service Mode
       case 0x00: printf("ACC FERRO\n");   return; // 000
       case 0x02: printf("ACC CHROME\n");  return; // 002
       case 0x04: printf("PDCC\n");        return; // 004
@@ -554,15 +555,20 @@ void parsebuffer(buf_t *buf, bool valid)
 
     case 0x51:
       // Get long title from [s]udcc
-      QCR("GET LONG UDCC TEXT -> ", 2, 41);
+      QCR("GET LONG UDCC TEXT: ", 2, 41);
 
-      if (cmd[1] == 0xFA) // E0 is also used when rewinding sudcc to beginning, but returns error
+      switch(cmd[1])
       {
-        printstring(rsp + 1, rsp + rsplen);
-        putc('\n', stdout);
-        return;
+      case 0xFA: printf("Track -> "); break;    // Get track name?
+      case 0xE0: printf("TOC track name -> ");  // Not sure; Used when rewinding sudcc to beginning, but returns error
+      case 0x01: printf("Lyrics -> ");          // Possibly language number for lyrics?
+      default:   printf("%02X -> ", cmd[1]);
       }
-      break;
+
+      printstring(rsp + 1, rsp + rsplen);
+      putc('\n', stdout);
+
+      return;
 
     case 0x52:
       // Get long title from pdcc
@@ -630,15 +636,15 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x02: printf("[]\n");          return; // Stop
-      case 0x03: printf("...\n");         return; // Reading
-      case 0x04: printf(">\n");           return; // Play
-      case 0x0A: printf(">>\n");          return; // FFWD (sector)
-      case 0x0B: printf("<<\n");          return; // Rewind (sector)
-      case 0x11: printf(">>|\n");         return; // Search forwards
-      case 0x12: printf("|<<\n");         return; // Search backwards
-      case 0x15: printf("(<<)\n");        return; // Search arriving at track
-      case 0x16: printf("(>>)\n");        return; // Search arriving at track
+      case 0x02: printf("STOP\n");        return; // Stop
+      case 0x03: printf("READ\n");        return; // Reading
+      case 0x04: printf("PLAY\n");        return; // Play
+      case 0x0A: printf("FFWD\n");        return; // FFWD (sector)
+      case 0x0B: printf("REWD\n");        return; // Rewind (sector)
+      case 0x11: printf("NEXT\n");        return; // Search forwards
+      case 0x12: printf("PREV\n");        return; // Search backwards
+      case 0x15: printf("SBY<\n");        return; // Search arriving at track
+      case 0x16: printf("SBY>\n");        return; // Search arriving at track
       default:
         printf("%02X\n", rsp[1]);         return; // TODO: decode other codes
       }
