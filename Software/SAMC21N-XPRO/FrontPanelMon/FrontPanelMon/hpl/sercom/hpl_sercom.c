@@ -4,7 +4,7 @@
  *
  * \brief SAM Serial Communication Interface
  *
- * Copyright (c) 2014-2018 Microchip Technology Inc. and its subsidiaries.
+ * Copyright (c) 2014-2019 Microchip Technology Inc. and its subsidiaries.
  *
  * \asf_license_start
  *
@@ -876,8 +876,8 @@ struct i2cm_configuration {
 	uint32_t                     clk; /* SERCOM peripheral clock frequency */
 };
 
-static inline void _i2c_m_enable_implementation(void *hw);
-static int32_t     _i2c_m_sync_init_impl(struct _i2c_m_service *const service, void *const hw);
+static inline int32_t _i2c_m_enable_implementation(void *hw);
+static int32_t        _i2c_m_sync_init_impl(struct _i2c_m_service *const service, void *const hw);
 
 #if SERCOM_I2CM_AMOUNT < 1
 /** Dummy array to pass compiling. */
@@ -1044,9 +1044,7 @@ int32_t _i2c_m_async_enable(struct _i2c_m_async_device *const i2c_dev)
 {
 	ASSERT(i2c_dev);
 
-	_i2c_m_enable_implementation(i2c_dev->hw);
-
-	return ERR_NONE;
+	return _i2c_m_enable_implementation(i2c_dev->hw);
 }
 
 /**
@@ -1336,9 +1334,7 @@ int32_t _i2c_m_sync_enable(struct _i2c_m_sync_device *const i2c_dev)
 {
 	ASSERT(i2c_dev);
 
-	_i2c_m_enable_implementation(i2c_dev->hw);
-
-	return ERR_NONE;
+	return _i2c_m_enable_implementation(i2c_dev->hw);
 }
 
 /**
@@ -1539,9 +1535,10 @@ int32_t _i2c_m_sync_send_stop(struct _i2c_m_sync_device *const i2c_dev)
 	return I2C_OK;
 }
 
-static inline void _i2c_m_enable_implementation(void *const hw)
+static inline int32_t _i2c_m_enable_implementation(void *const hw)
 {
-	int timeout = 65535;
+	int timeout         = 65535;
+	int timeout_attempt = 4;
 
 	ASSERT(hw);
 
@@ -1552,9 +1549,14 @@ static inline void _i2c_m_enable_implementation(void *const hw)
 		timeout--;
 
 		if (timeout <= 0) {
+			if (--timeout_attempt)
+				timeout = 65535;
+			else
+				return I2C_ERR_BUSY;
 			hri_sercomi2cm_clear_STATUS_reg(hw, SERCOM_I2CM_STATUS_BUSSTATE(I2C_IDLE));
 		}
 	}
+	return ERR_NONE;
 }
 
 static int32_t _i2c_m_sync_init_impl(struct _i2c_m_service *const service, void *const hw)
@@ -1683,6 +1685,12 @@ static struct i2cs_configuration _i2css[] = {
 #if CONF_SERCOM_5_I2CS_ENABLE == 1
     I2CS_CONFIGURATION(5),
 #endif
+#if CONF_SERCOM_6_I2CS_ENABLE == 1
+    I2CS_CONFIGURATION(6),
+#endif
+#if CONF_SERCOM_7_I2CS_ENABLE == 1
+    I2CS_CONFIGURATION(7),
+#endif
 };
 #endif
 
@@ -1723,6 +1731,10 @@ int32_t _i2c_s_async_init(struct _i2c_s_async_device *const device, void *const 
 	NVIC_DisableIRQ((IRQn_Type)_sercom_get_irq_num(hw));
 	NVIC_ClearPendingIRQ((IRQn_Type)_sercom_get_irq_num(hw));
 	NVIC_EnableIRQ((IRQn_Type)_sercom_get_irq_num(hw));
+
+	// Enable Address Match and PREC interrupt by default.
+	hri_sercomi2cs_set_INTEN_AMATCH_bit(hw);
+	hri_sercomi2cs_set_INTEN_PREC_bit(hw);
 
 	return ERR_NONE;
 }

@@ -143,7 +143,7 @@
 // <i> Indicates OSC48M division value
 // <id> osc48m_div
 #ifndef CONF_OSC48M_DIV
-#define CONF_OSC48M_DIV 11
+#define CONF_OSC48M_DIV 1
 #endif
 
 // <o> Start-Up Time
@@ -230,18 +230,21 @@
 #endif
 
 // <o> Loop Divider Ratio Fractional Part <0x0-0xF>
+// <i> Value of LDRFRAC is calculated using Fclk_dpll=Fckr*(LDR+1+LDRFRAC/16)/(2^presc) formula as given in datasheet. This value is directly written in to DPLLRATIO register
 // <id> fdpll96m_ldrfrac
 #ifndef CONF_DPLL_LDRFRAC
 #define CONF_DPLL_LDRFRAC 0xd
 #endif
 
 // <o> Loop Divider Ratio Integer Part <0x0-0xFFF>
+// <i> Value of LDR is calculated using Fclk_dpll=Fckr*(LDR+1+LDRFRAC/16)/(2^presc) formula as given in datasheet. This value is directly written in to DPLLRATIO register
 // <id> fdpll96m_ldr
 #ifndef CONF_DPLL_LDR
 #define CONF_DPLL_LDR 0x5b7
 #endif
 
 // <o> Clock Divider <0x0-0x3FF>
+// <i> This Clock divider is only for XOSC clock input to DPLL
 // <id> fdpll96m_clock_div
 #ifndef CONF_DPLL_DIV
 #define CONF_DPLL_DIV 0

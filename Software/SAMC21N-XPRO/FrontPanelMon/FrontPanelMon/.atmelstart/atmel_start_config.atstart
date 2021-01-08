@@ -18,7 +18,15 @@ board:
   device: SAMC21N18A-AN
 details: null
 application: null
-middlewares: {}
+middlewares:
+  STDIO_REDIRECT_0:
+    user_label: STDIO_REDIRECT_0
+    configuration: {}
+    definition: Atmel:STDIO_redirect:0.0.1::STDIO_Redirect
+    functionality: STDIO_Redirect
+    api: STDIO:Redirect:IO
+    dependencies:
+      Target IO: SER_EDBG
 drivers:
   DMAC:
     user_label: DMAC
@@ -322,10 +330,10 @@ drivers:
     functionality: System
     api: HAL:HPL:GCLK
     configuration:
-      $input: 24000000
-      $input_id: 48MHz Internal Oscillator (OSC48M)
-      RESERVED_InputFreq: 24000000
-      RESERVED_InputFreq_id: 48MHz Internal Oscillator (OSC48M)
+      $input: 400000
+      $input_id: External Crystal Oscillator 0.4-32MHz (XOSC)
+      RESERVED_InputFreq: 400000
+      RESERVED_InputFreq_id: External Crystal Oscillator 0.4-32MHz (XOSC)
       _$freq_output_Generic clock generator 0: 24000000
       _$freq_output_Generic clock generator 1: 400000
       _$freq_output_Generic clock generator 2: 400000
@@ -490,9 +498,9 @@ drivers:
     functionality: System
     api: HAL:HPL:OSCCTRL
     configuration:
-      $input: 48000000
+      $input: 32768
       $input_id: 32kHz External Crystal Oscillator (XOSC32K)
-      RESERVED_InputFreq: 48000000
+      RESERVED_InputFreq: 32768
       RESERVED_InputFreq_id: 32kHz External Crystal Oscillator (XOSC32K)
       _$freq_output_48MHz Internal Oscillator (OSC48M): 24000000
       _$freq_output_External Crystal Oscillator 0.4-32MHz (XOSC): 400000
@@ -653,7 +661,7 @@ drivers:
       usart_arch_sampa: 7-8-9 (3-4-5 8-bit over-sampling)
       usart_arch_sampr: 16x arithmetic
       usart_arch_sfde: false
-      usart_baud_rate: 9600
+      usart_baud_rate: 1000000
       usart_character_size: 8 bits
       usart_parity: No parity
       usart_rx_enable: true
@@ -734,50 +742,6 @@ drivers:
         configuration:
           core_gclk_selection: Generic clock generator 0
           slow_gclk_selection: Generic clock generator 3
-  SPI_EXT3:
-    user_label: SPI_EXT3
-    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM7::driver_config_definition::SPI.Master::HAL:Driver:SPI.Master.Sync
-    functionality: SPI
-    api: HAL:Driver:SPI_Master_Sync
-    configuration:
-      spi_master_advanced: false
-      spi_master_arch_cpha: Sample input on leading edge
-      spi_master_arch_cpol: SCK is low when idle
-      spi_master_arch_dbgstop: Keep running
-      spi_master_arch_dord: MSB first
-      spi_master_arch_ibon: In data stream
-      spi_master_arch_runstdby: false
-      spi_master_baud_rate: 4000000
-      spi_master_character_size: 8 bits
-      spi_master_dummybyte: 511
-      spi_master_rx_enable: true
-    optional_signals: []
-    variant:
-      specification: TXPO=1, RXPO=0
-      required_signals:
-      - name: SERCOM7/PAD/0
-        pad: PC12
-        label: MISO
-      - name: SERCOM7/PAD/2
-        pad: PC14
-        label: MOSI
-      - name: SERCOM7/PAD/3
-        pad: PC11
-        label: SCK
-    clocks:
-      domain_group:
-        nodes:
-        - name: Core
-          input: Generic clock generator 0
-          external: false
-          external_frequency: 0
-        - name: Slow
-          input: Generic clock generator 3
-          external: false
-          external_frequency: 0
-        configuration:
-          core_gclk_selection: Generic clock generator 0
-          slow_gclk_selection: Generic clock generator 3
 pads:
   LED0:
     name: PC05
@@ -810,24 +774,6 @@ pads:
     user_label: SPI_EDBG_SS
     configuration:
       pad_initial_level: High
-  PC11:
-    name: PC11
-    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC11
-    mode: Digital output
-    user_label: PC11
-    configuration: null
-  PC12:
-    name: PC12
-    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC12
-    mode: Digital input
-    user_label: PC12
-    configuration: null
-  PC14:
-    name: PC14
-    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC14
-    mode: Digital output
-    user_label: PC14
-    configuration: null
   PA18:
     name: PA18
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA18

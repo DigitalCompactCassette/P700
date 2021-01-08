@@ -73,17 +73,3 @@ void SPI_EXT2_example(void)
 	spi_s_async_enable(&SPI_EXT2);
 	io_write(io, example_SPI_EXT2, 12);
 }
-
-/**
- * Example of using SPI_EXT3 to write "Hello World" using the IO abstraction.
- */
-static uint8_t example_SPI_EXT3[12] = "Hello World!";
-
-void SPI_EXT3_example(void)
-{
-	struct io_descriptor *io;
-	spi_m_sync_get_io_descriptor(&SPI_EXT3, &io);
-
-	spi_m_sync_enable(&SPI_EXT3);
-	io_write(io, example_SPI_EXT3, 12);
-}

@@ -1,9 +1,9 @@
 /**
  * \file
  *
- * \brief Common SPI DMA related functionality declaration.
+ * \brief STDIO redirection terminal
  *
- * Copyright (c) 2016-2018 Microchip Technology Inc. and its subsidiaries.
+ * Copyright (c) 2015-2018 Microchip Technology Inc. and its subsidiaries.
  *
  * \asf_license_start
  *
@@ -31,58 +31,51 @@
  *
  */
 
-#ifndef _HPL_SPI_DMA_H_INCLUDED
-#define _HPL_SPI_DMA_H_INCLUDED
+#ifndef _STDIO_IO_H_INCLUDED
+#define _STDIO_IO_H_INCLUDED
 
-#include <hpl_irq.h>
-#include <hpl_dma.h>
+#include <hal_io.h>
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-/** The callback types */
-enum _spi_dma_dev_cb_type {
-	/** Callback type for DMA transmit. */
-	SPI_DEV_CB_DMA_TX,
-	/** Callback type for DMA receive. */
-	SPI_DEV_CB_DMA_RX,
-	/** Callback type for DMA error. */
-	SPI_DEV_CB_DMA_ERROR,
-	/** Number of callbacks. */
-	SPI_DEV_CB_DMA_N
-};
-
-struct _spi_dma_dev;
+#endif /* __cplusplus */
 
 /**
- *  \brief The prototype for callback on SPI DMA.
+ *  \brief Initialize STDIO access
+ *  \param[in] io Pointer to IO descriptor,
+ *                NULL to discard R/W without any error.
  */
-typedef void (*_spi_dma_cb_t)(struct _dma_resource *resource);
+void stdio_io_init(struct io_descriptor *io);
 
 /**
- *  \brief The callbacks offered by SPI driver
+ *  \brief Change IO descriptor for terminal to R/W data
+ *  \param[in] io Pointer to IO descriptor,
+ *                NULL to discard R/W without any error.
  */
-struct _spi_dma_dev_callbacks {
-	_spi_dma_cb_t tx;
-	_spi_dma_cb_t rx;
-	_spi_dma_cb_t error;
-};
+void stdio_io_set_io(struct io_descriptor *io);
 
-/** SPI driver to support DMA HAL */
-struct _spi_dma_dev {
-	/** Pointer to the hardware base or private data for special device. */
-	void *prvt;
-	/** Pointer to callback functions */
-	struct _spi_dma_dev_callbacks callbacks;
-	/** IRQ instance for SPI device. */
-	struct _irq_descriptor irq;
-	/** DMA resource */
-	struct _dma_resource *resource;
-};
+/**
+ *  \brief Read through specified terminal
+ *  \param[out] buf Pointer to buffer to place read data
+ *  \param[in] len Data length in number of bytes
+ *  \return status
+ *  \retval >=0 number of bytes read
+ *  \retval <0 error
+ */
+int32_t stdio_io_read(uint8_t *buf, const int32_t len);
+
+/**
+ *  \brief Write through specified terminal
+ *  \param[in] buf Pointer to buffer to place data to write
+ *  \param[in] len Data length in number of bytes
+ *  \return status
+ *  \retval >=0 number of bytes read
+ *  \retval <0 error
+ */
+int32_t stdio_io_write(const uint8_t *buf, const int32_t len);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
-#endif /* ifndef _HPL_SPI_DMA_H_INCLUDED */
+#endif /* _STDIO_IO_H_INCLUDED */

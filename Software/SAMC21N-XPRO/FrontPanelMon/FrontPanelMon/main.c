@@ -14,8 +14,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "jg_stdio_redirect.h"
-
 /*
   This program is intended to reverse-engineer the data that goes over the
   bus between the front panel and the digital board microcontroller of the
@@ -95,10 +93,7 @@ void reinit(void)
 {
   atmel_start_init();
 
-  // Redirect stdio to the EXT3 SPI port.
-  // This port is connected to the EDBG chip but also to other devices.
-  // See the jg_stdio_redirect.c module for info why the module is needed.
-  jg_stdio_redirect_init(&SPI_EXT3, SPI_EDBG_SS);
+  printf("\r\nHardware initialized\r\n");
 
   ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
   ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
@@ -213,7 +208,7 @@ void parsebuffer(buf_t *buf, bool valid)
     printhex(buf->buf, buf->buf + buf->rsp);
     fputs("-- ", stdout);
     printhex(buf->buf + buf->rsp, buf->buf + buf->len);
-    fputc('\n', stdout);
+    fputs("\r\n", stdout);
     return;
   }
 
@@ -249,7 +244,7 @@ void parsebuffer(buf_t *buf, bool valid)
 #define QCR(name, wantedcmdlen, wantedrsplen) do { P(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) goto dump; } while(0)
 #define QC(name, wantedcmdlen) QCR(name, wantedcmdlen, 1) // Command with parameters, no return data
 #define QR(name, wantedrsplen) QCR(name, 1, wantedrsplen) // Command without parameters, has return data
-#define Q(name) QCR(name, 1, 1); do { fputc('\n', stdout); return; } while(0) // Command with no parameters, no return data
+#define Q(name) QCR(name, 1, 1); do { fputs("\r\n", stdout); return; } while(0) // Command with no parameters, no return data
 
     case 0x02: Q("DECK: STOP");
     case 0x03: Q("DECK: PLAY");
@@ -266,44 +261,44 @@ void parsebuffer(buf_t *buf, bool valid)
       {
       // Note: These numbers correspond to the numbers shown on the front
       // panel during the Key Test program of the Service Mode
-      case 0x01: printf("SIDE A/B\n");      return;
-      case 0x02: printf("OPEN/CLOSE\n");    return;
-      case 0x03: printf("EDIT\n");          return;
-      case 0x04: printf("REC/PAUSE\n");     return;
-      case 0x05: printf("STOP\n");          return;
-      case 0x06: printf("REPEAT\n");        return;
-      case 0x07: printf("DOLBY\n");         return;
-      case 0x08: printf("SCROLL\n");        return;
-      case 0x09: printf("RECLEVEL-\n");     return;
-      case 0x0A: printf("APPEND\n");        return;
-      case 0x0B: printf("PLAY\n");          return;
-      case 0x0C: printf("PRESETS\n");       return;
-      case 0x0D: printf("TIME\n");          return;
-      case 0x0E: printf("TEXT\n");          return;
-      case 0x0F: printf("RECLEVEL+\n");     return;
-      case 0x10: printf("RECORD\n");        return;
-      case 0x11: printf("NEXT\n");          return;
-      case 0x12: printf("PREV\n");          return;
+      case 0x01: printf("SIDE A/B\r\n");      return;
+      case 0x02: printf("OPEN/CLOSE\r\n");    return;
+      case 0x03: printf("EDIT\r\n");          return;
+      case 0x04: printf("REC/PAUSE\r\n");     return;
+      case 0x05: printf("STOP\r\n");          return;
+      case 0x06: printf("REPEAT\r\n");        return;
+      case 0x07: printf("DOLBY\r\n");         return;
+      case 0x08: printf("SCROLL\r\n");        return;
+      case 0x09: printf("RECLEVEL-\r\n");     return;
+      case 0x0A: printf("APPEND\r\n");        return;
+      case 0x0B: printf("PLAY\r\n");          return;
+      case 0x0C: printf("PRESETS\r\n");       return;
+      case 0x0D: printf("TIME\r\n");          return;
+      case 0x0E: printf("TEXT\r\n");          return;
+      case 0x0F: printf("RECLEVEL+\r\n");     return;
+      case 0x10: printf("RECORD\r\n");        return;
+      case 0x11: printf("NEXT\r\n");          return;
+      case 0x12: printf("PREV\r\n");          return;
 
       // Remote control
       // "PAUSE" and "COUNTER RESET" and "WRITE MARK" don't show up
       //
       // NOTE: Numbers in comments are the codes shown in the service manual
       // for the key test program
-      case 0x1C: printf("RC FFWD\n");       return; // 052?
-      case 0x1D: printf("RC OPEN/CLOSE\n"); return; // 045
-      case 0x1F: printf("RC REWIND\n");     return; // 050?
-      case 0x20: printf("RC 0\n");          return; // 000
-      case 0x21: printf("RC 1\n");          return; // 001
-      case 0x22: printf("RC 2\n");          return; // 002
-      case 0x23: printf("RC 3\n");          return; // 003
-      case 0x24: printf("RC 4\n");          return; // 004
-      case 0x25: printf("RC 5\n");          return; // 005
-      case 0x26: printf("RC 6\n");          return; // 006
-      case 0x27: printf("RC 7\n");          return; // 007
-      case 0x28: printf("RC 8\n");          return; // 008
-      case 0x29: printf("RC 9\n");          return; // 009
-      case 0x2C: printf("RC STANDBY\n");    return; // 012
+      case 0x1C: printf("RC FFWD\r\n");       return; // 052?
+      case 0x1D: printf("RC OPEN/CLOSE\r\n"); return; // 045
+      case 0x1F: printf("RC REWIND\r\n");     return; // 050?
+      case 0x20: printf("RC 0\r\n");          return; // 000
+      case 0x21: printf("RC 1\r\n");          return; // 001
+      case 0x22: printf("RC 2\r\n");          return; // 002
+      case 0x23: printf("RC 3\r\n");          return; // 003
+      case 0x24: printf("RC 4\r\n");          return; // 004
+      case 0x25: printf("RC 5\r\n");          return; // 005
+      case 0x26: printf("RC 6\r\n");          return; // 006
+      case 0x27: printf("RC 7\r\n");          return; // 007
+      case 0x28: printf("RC 8\r\n");          return; // 008
+      case 0x29: printf("RC 9\r\n");          return; // 009
+      case 0x2C: printf("RC STANDBY\r\n");    return; // 012
       // I couldn't reproduce the following codes from the service manual
       // with my Logitech Harmony universal remote control. I may verify
       // these later.
@@ -333,9 +328,9 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(cmd[1])
       {
-      case 1: printf("None\n");    return;
-      case 2: printf("Track\n");   return;
-      case 3: printf("All\n");     return;
+      case 1: printf("None\r\n");    return;
+      case 2: printf("Track\r\n");   return;
+      case 3: printf("All\r\n");     return;
       default:
         ; // Nothing
       }
@@ -348,7 +343,7 @@ void parsebuffer(buf_t *buf, bool valid)
       // tapes, we won't know...
       QC("SECTOR: ", 2);
 
-      printf("%u\n", cmd[1]);
+      printf("%u\r\n", cmd[1]);
 
       return;
 
@@ -356,7 +351,7 @@ void parsebuffer(buf_t *buf, bool valid)
       // Go to track (pdcc only?)
       QC("GO TO TRACK: ", 3);
 
-      printf("To=%u, [2]=%u\n", cmd[1], cmd[2]);
+      printf("To=%u, [2]=%u\r\n", cmd[1], cmd[2]);
 
       return;
 
@@ -365,7 +360,7 @@ void parsebuffer(buf_t *buf, bool valid)
       QC("FRONT PANEL ID: ", 42);
 
       printstring(cmd + 1, cmd + cmdlen);
-      putc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 
@@ -374,7 +369,7 @@ void parsebuffer(buf_t *buf, bool valid)
       QC("DECK: SEARCH: ", 3);
 
       printhex(rsp + 1, rsp + 3);
-      fputc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 /*
@@ -382,13 +377,13 @@ void parsebuffer(buf_t *buf, bool valid)
       if (rsp[1] < 100)
       {
         // You can search forwards by 1-99 tracks
-        printf("+%u [%02X]\n", rsp[1], rsp[2]);
+        printf("+%u [%02X]\r\n", rsp[1], rsp[2]);
         return;
       }
       else // if?...
       {
         // Searching backwards it uses EE=-0, ED=-1 etc. Weird.
-        printf("-%u [%02X]\n", 0xEE - rsp[1], rsp[2]);
+        printf("-%u [%02X]\r\n", 0xEE - rsp[1], rsp[2]);
         return;
       }
 
@@ -406,11 +401,11 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(cmd[1])
       {
-      case 1: printf("TOTAL TIME\n");     return; // prerec/dcc/acc
-      case 2: printf("TOT REM TIME\n");   return; // prerec
-      case 3: printf("TRACK TIME\n");     return; // prerec/sudcc
+      case 1: printf("TOTAL TIME\r\n");     return; // prerec/dcc/acc
+      case 2: printf("TOT REM TIME\r\n");   return; // prerec
+      case 3: printf("TRACK TIME\r\n");     return; // prerec/sudcc
 
-      case 5: printf("REM TIME\n");       return; // non-prerecorded
+      case 5: printf("REM TIME\r\n");       return; // non-prerecorded
       default:
         ; // Nothing
       }
@@ -461,7 +456,7 @@ void parsebuffer(buf_t *buf, bool valid)
 
             if (rsp[3] & 0x80) fputs("DECKTIME ",   stdout); // No absolute tape time, using deck time?
             if (rsp[3] & 0x40) fputs("TAPETIME ",   stdout); // Using tape time code
-            printf("Sector=%u\n", rsp[3] & 3);
+            printf("Sector=%u\r\n", rsp[3] & 3);
 
             memcpy(status, rsp, sizeof(status));
           }
@@ -480,10 +475,10 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x10: printf("CLEAN HEADS\n");   return;
-      case 0x1F: printf("POWER FAIL\n");    return;
+      case 0x10: printf("CLEAN HEADS\r\n");   return;
+      case 0x1F: printf("POWER FAIL\r\n");    return;
       default:
-        printf("%02X\n", rsp[1]);           return;
+        printf("%02X\r\n", rsp[1]);           return;
       }
 
     case 0x46:
@@ -492,12 +487,12 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 1: printf("Closed\n");         return;
-      case 2: printf("Open\n");           return;
-      case 3: printf("Closing\n");        return;
-      case 4: printf("Opening\n");        return;
-      case 5: printf("Blocked\n");        return;
-      case 6: printf("Unknown\n");        return;
+      case 1: printf("Closed\r\n");         return;
+      case 2: printf("Open\r\n");           return;
+      case 3: printf("Closing\r\n");        return;
+      case 4: printf("Opening\r\n");        return;
+      case 5: printf("Blocked\r\n");        return;
+      case 6: printf("Unknown\r\n");        return;
       default:
         ; // Nothing
       }
@@ -529,26 +524,26 @@ void parsebuffer(buf_t *buf, bool valid)
       //  Undefined    (0/0/0) Also used for prerecorded DCC
       // These numbers correspond to the decimal numbers that are shown by
       // the "Switches Test" program in Service Mode
-      case 0x00: printf("ACC FERRO\n");   return; // 000
-      case 0x02: printf("ACC CHROME\n");  return; // 002
-      case 0x04: printf("PDCC\n");        return; // 004
-      case 0x14: printf("UDCC(PROT)\n");  return; // 020
-      case 0x1C: printf("UDCC\n");        return; // 028
-      case 0x24: printf("DCC120(PROT)\n");return; // 036
-      case 0x2C: printf("DCC120\n");      return; // 044
-      case 0x34: printf("DCC105(PROT)\n");return; // 052
-      case 0x3C: printf("DCC105\n");      return; // 060
-      case 0x44: printf("DCC90(PROT)\n"); return; // 068
-      case 0x4C: printf("DCC90\n");       return; // 076
-      case 0x54: printf("DCC75(PROT)\n"); return; // 084
-      case 0x5C: printf("DCC75\n");       return; // 092
-      case 0x64: printf("DCC60(PROT)\n"); return; // 100
-      case 0x6C: printf("DCC60\n");       return; // 108
-      case 0x74: printf("DCC45(PROT)\n"); return; // 116
-      case 0x7B: printf("NO CASSETTE\n"); return; // 123
-      case 0x7C: printf("DCC45\n");       return; // 124
+      case 0x00: printf("ACC FERRO\r\n");   return; // 000
+      case 0x02: printf("ACC CHROME\r\n");  return; // 002
+      case 0x04: printf("PDCC\r\n");        return; // 004
+      case 0x14: printf("UDCC(PROT)\r\n");  return; // 020
+      case 0x1C: printf("UDCC\r\n");        return; // 028
+      case 0x24: printf("DCC120(PROT)\r\n");return; // 036
+      case 0x2C: printf("DCC120\r\n");      return; // 044
+      case 0x34: printf("DCC105(PROT)\r\n");return; // 052
+      case 0x3C: printf("DCC105\r\n");      return; // 060
+      case 0x44: printf("DCC90(PROT)\r\n"); return; // 068
+      case 0x4C: printf("DCC90\r\n");       return; // 076
+      case 0x54: printf("DCC75(PROT)\r\n"); return; // 084
+      case 0x5C: printf("DCC75\r\n");       return; // 092
+      case 0x64: printf("DCC60(PROT)\r\n"); return; // 100
+      case 0x6C: printf("DCC60\r\n");       return; // 108
+      case 0x74: printf("DCC45(PROT)\r\n"); return; // 116
+      case 0x7B: printf("NO CASSETTE\r\n"); return; // 123
+      case 0x7C: printf("DCC45\r\n");       return; // 124
       default:
-        printf("%02X\n", rsp[1]);         return;
+        printf("%02X\r\n", rsp[1]);         return;
       }
 
       break;
@@ -566,7 +561,7 @@ void parsebuffer(buf_t *buf, bool valid)
       }
 
       printstring(rsp + 1, rsp + rsplen);
-      putc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 
@@ -576,7 +571,7 @@ void parsebuffer(buf_t *buf, bool valid)
 
       printf("Track %u -> ", cmd[1]);
       printstring(rsp + 1, rsp + rsplen);
-      putc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 
@@ -587,7 +582,7 @@ void parsebuffer(buf_t *buf, bool valid)
       if (cmd[1] == 0xFA) // E0 is also used when rewinding sudcc to beginning, but returns error
       {
         printstring(rsp + 1, rsp + rsplen);
-        putc('\n', stdout);
+        fputs("\r\n", stdout);
         return;
       }
       break;
@@ -598,7 +593,7 @@ void parsebuffer(buf_t *buf, bool valid)
 
       printf("Track %u -> ", cmd[1]);
       printstring(rsp + 1, rsp + rsplen);
-      putc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 
@@ -607,7 +602,7 @@ void parsebuffer(buf_t *buf, bool valid)
       QR("Get DDU ID -> ", 5);
 
       printhex(rsp + 1, rsp + rsplen);
-      fputc('\n', stdout);
+      fputs("\r\n", stdout);
 
       return;
 
@@ -617,14 +612,14 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x02: printf("TRACK\n");       return;
-      case 0x03: printf("REVERSE\n");     return; // Switch to side B
-      case 0x07: printf("SKIP +1\n");     return; // Skip marker? Also seen at beginning of 175-recorded tape
-      case 0x0D: printf("INTRO SKIP\n");  return; // Skip over begin of sector 1
-      case 0x14: printf("BEGIN SEC\n");   return; // After reversing
+      case 0x02: printf("TRACK\r\n");       return;
+      case 0x03: printf("REVERSE\r\n");     return; // Switch to side B
+      case 0x07: printf("SKIP +1\r\n");     return; // Skip marker? Also seen at beginning of 175-recorded tape
+      case 0x0D: printf("INTRO SKIP\r\n");  return; // Skip over begin of sector 1
+      case 0x14: printf("BEGIN SEC\r\n");   return; // After reversing
       case 0x0E: 
       default:
-        printf("%02X\n", rsp[1]);
+        printf("%02X\r\n", rsp[1]);
       }
 
       return;
@@ -636,17 +631,17 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
-      case 0x02: printf("STOP\n");        return; // Stop
-      case 0x03: printf("READ\n");        return; // Reading
-      case 0x04: printf("PLAY\n");        return; // Play
-      case 0x0A: printf("FFWD\n");        return; // FFWD (sector)
-      case 0x0B: printf("REWD\n");        return; // Rewind (sector)
-      case 0x11: printf("NEXT\n");        return; // Search forwards
-      case 0x12: printf("PREV\n");        return; // Search backwards
-      case 0x15: printf("SBY<\n");        return; // Search arriving at track
-      case 0x16: printf("SBY>\n");        return; // Search arriving at track
+      case 0x02: printf("STOP\r\n");        return; // Stop
+      case 0x03: printf("READ\r\n");        return; // Reading
+      case 0x04: printf("PLAY\r\n");        return; // Play
+      case 0x0A: printf("FFWD\r\n");        return; // FFWD (sector)
+      case 0x0B: printf("REWD\r\n");        return; // Rewind (sector)
+      case 0x11: printf("NEXT\r\n");        return; // Search forwards
+      case 0x12: printf("PREV\r\n");        return; // Search backwards
+      case 0x15: printf("SBY<\r\n");        return; // Search arriving at track
+      case 0x16: printf("SBY>\r\n");        return; // Search arriving at track
       default:
-        printf("%02X\n", rsp[1]);         return; // TODO: decode other codes
+        printf("%02X\r\n", rsp[1]);         return; // TODO: decode other codes
       }
 
       return;
@@ -662,7 +657,7 @@ void parsebuffer(buf_t *buf, bool valid)
       // marker.
       QR("GET TARGET TRACK -> ", 2);
 
-      printf("%d\n", rsp[1]);           return;
+      printf("%d\r\n", rsp[1]);           return;
 
       return;
 
@@ -673,7 +668,7 @@ void parsebuffer(buf_t *buf, bool valid)
       {
         QR("VU -> ", 3);
 
-        printf("%16s %-16s\n", vustring(rsp[1]), vustring(rsp[2]));
+        printf("%16s %-16s\r\n", vustring(rsp[1]), vustring(rsp[2]));
       }
 
       return;
@@ -693,7 +688,7 @@ void parsebuffer(buf_t *buf, bool valid)
         if ((chattymode) || (rsp[2] != track))
         {
           P("Time -> ");
-          printf("Track %02X Time %02X:%02X:%02X Counter %02X%02X [1=%02X 6=%02X 9=%02X]\n", 
+          printf("Track %02X Time %02X:%02X:%02X Counter %02X%02X [1=%02X 6=%02X 9=%02X]\r\n", 
             rsp[2], rsp[3], rsp[4], rsp[5], rsp[7], rsp[8], 
             rsp[1], rsp[6], rsp[9]);
 
@@ -706,7 +701,7 @@ void parsebuffer(buf_t *buf, bool valid)
       // Get tape info for prerecorded tape
       QR("PREREC TAPE INFO -> ", 6);
 
-      printf("[1]=0x%02X Tracks=%02X Total time=%02X:%02X:%02X\n",
+      printf("[1]=0x%02X Tracks=%02X Total time=%02X:%02X:%02X\r\n",
         rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
 
       return;
@@ -722,7 +717,7 @@ dump:
   printhex(cmd, cmd + cmdlen); // Command
   fputs("-- ", stdout);
   printhex(rsp, rsp + rsplen); // Command
-  putc('\n', stdout);
+  fputs("\r\n", stdout);
 }
 
 
@@ -732,7 +727,7 @@ int main(void)
 {
   reinit();
 
-  printf("\nFront panel monitor running\n");
+  printf("\r\nFront panel monitor running\r\n");
 
   uint8_t checksum = 0;
   bool valid = true;
