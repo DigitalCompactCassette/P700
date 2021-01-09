@@ -199,7 +199,7 @@ inline const char *vustring(uint8_t vu)
 
 //---------------------------------------------------------------------------
 // Parse a buffer
-void parsebuffer(buf_t *buf, bool valid)
+void parseresponse(buf_t *buf, bool valid)
 {
   if ((buf->len < 4) || (buf->rsp < 2))
   {
@@ -645,12 +645,17 @@ void parsebuffer(buf_t *buf, bool valid)
       case 0x02: printf("STOP\r\n");        return; // Stop
       case 0x03: printf("READ\r\n");        return; // Reading
       case 0x04: printf("PLAY\r\n");        return; // Play
+      
       case 0x0A: printf("FFWD\r\n");        return; // FFWD (sector)
       case 0x0B: printf("REWD\r\n");        return; // Rewind (sector)
+      
       case 0x11: printf("NEXT\r\n");        return; // Search forwards
       case 0x12: printf("PREV\r\n");        return; // Search backwards
+      
       case 0x15: printf("SBY<\r\n");        return; // Search arriving at track
       case 0x16: printf("SBY>\r\n");        return; // Search arriving at track
+      
+      case 0x30: printf("SKIP\r\n");        return; // Skipping intro
       default:
         printf("%02X\r\n", rsp[1]);         return; // TODO: decode other codes
       }
@@ -750,6 +755,98 @@ dump:
 
 
 //---------------------------------------------------------------------------
+// Parse command and response bytes for the front panel bus
+void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
+{
+  static uint8_t checksum = 0;
+  static bool valid = true;
+  static buf_t buffer;
+  static uint8_t rxbyte;
+
+  // If one of the bytes is 0xFF but the other one isn't, we know for sure
+  // who is sending the data. Otherwise (i.e. when both incoming bytes
+  // are 0xFF) we assume that the data came from the same source as the
+  // previous byte.
+  //
+  // That means we get out of sync if the first byte from either side is
+  // 0xFF but this is very unlikely and probably easy to recognize. For
+  // one thing, the checksum will not match if we get it wrong.
+  if ((cmdbyte != 0xFF) && (cmdbyte != 0xEE))
+  {
+    // Data came from front panel
+
+    // If we already have some response bytes, parse the buffer and clear
+    // it before we store the new byte.
+    if (buffer.rsp)
+    {
+      // Check response checksum
+      if (checksum != 0xFF)
+      {
+        valid = false;
+      }
+
+      // Note: Interpreting the data may be an expensive operation.
+      // That's okay, the receive callbacks will just gather up data
+      // into the ringbuffers in the background.
+      gpio_toggle_pin_level(LED0);
+      parseresponse(&buffer, valid);
+      gpio_toggle_pin_level(LED0);
+
+      buffer.len = buffer.rsp = 0;
+      checksum = 0;
+      valid = true;
+    }
+
+    rxbyte = cmdbyte;
+  }
+  else if ((rspbyte != 0xFF) && (rspbyte != 0xEE))
+  {
+    // Data came from dig-mcu
+
+    // Ignore the data if we don't have a command yet.
+    // There's no point trying to catch and interpret a response without
+    // the command.
+/*
+    if (!buffer.len)
+    {
+      continue;
+    }
+*/
+
+    // If this is the first response byte, mark it
+    if (!buffer.rsp)
+    {
+      // Check command checksum
+      if (checksum != 0xFF)
+      {
+        valid = false;
+      }
+
+      buffer.rsp = buffer.len; // Response starts here
+
+      checksum = 0;
+    }
+
+    rxbyte = rspbyte;
+  }
+  else
+  {
+    // Both bytes were 0xFF, don't change direction
+    rxbyte = 0xFF;
+  }
+
+  checksum += rxbyte;
+
+  if (buffer.len < sizeof(buffer.buf))
+  {
+    buffer.buf[buffer.len++] = rxbyte;
+//      buffer.buf[buffer.len++] = cmdbyte;
+//      buffer.buf[buffer.len++] = rspbyte;
+  }
+}
+
+
+//---------------------------------------------------------------------------
 // Main application
 int main(void)
 {
@@ -757,15 +854,10 @@ int main(void)
 
   printf("\r\nFront panel monitor running\r\n");
 
-  uint8_t checksum = 0;
-  bool valid = true;
-  buf_t buffer;
-
   for(;;)
   {
     uint8_t cmdbyte;
     uint8_t rspbyte;
-    uint8_t rxbyte;
 
     if (check_button())
     {
@@ -782,85 +874,6 @@ int main(void)
     ringbuffer_get(&rb_cmd, &cmdbyte);
     ringbuffer_get(&rb_rsp, &rspbyte);
 
-    // If one of the bytes is 0xFF but the other one isn't, we know for sure
-    // who is sending the data. Otherwise (i.e. when both incoming bytes
-    // are 0xFF) we assume that the data came from the same source as the
-    // previous byte.
-    //
-    // That means we get out of sync if the first byte from either side is
-    // 0xFF but this is very unlikely and probably easy to recognize. For
-    // one thing, the checksum will not match if we get it wrong.
-    if ((cmdbyte != 0xFF) && (cmdbyte != 0xEE))
-    {
-      // Data came from front panel
-
-      // If we already have some response bytes, parse the buffer and clear
-      // it before we store the new byte.
-      if (buffer.rsp)
-      {
-        // Check response checksum
-        if (checksum != 0xFF)
-        {
-          valid = false;
-        }
-
-        // Note: Interpreting the data may be an expensive operation.
-        // That's okay, the receive callbacks will just gather up data
-        // into the ringbuffers in the background.
-        gpio_toggle_pin_level(LED0);
-        parsebuffer(&buffer, valid);
-        gpio_toggle_pin_level(LED0);
-
-        buffer.len = buffer.rsp = 0;
-        checksum = 0;
-        valid = true;
-      }
-
-      rxbyte = cmdbyte;
-    }
-    else if ((rspbyte != 0xFF) && (rspbyte != 0xEE))
-    {
-      // Data came from dig-mcu
-
-      // Ignore the data if we don't have a command yet.
-      // There's no point trying to catch and interpret a response without
-      // the command.
-/*
-      if (!buffer.len)
-      {
-        continue;
-      }
-*/
-
-      // If this is the first response byte, mark it
-      if (!buffer.rsp)
-      {
-        // Check command checksum
-        if (checksum != 0xFF)
-        {
-          valid = false;
-        }
-
-        buffer.rsp = buffer.len; // Response starts here
-
-        checksum = 0;
-      }
-
-      rxbyte = rspbyte;
-    }
-    else
-    {
-      // Both bytes were 0xFF, don't change direction
-      rxbyte = 0xFF;
-    }
-
-    checksum += rxbyte;
-
-    if (buffer.len < sizeof(buffer.buf))
-    {
-      buffer.buf[buffer.len++] = rxbyte;
-//      buffer.buf[buffer.len++] = cmdbyte;
-//      buffer.buf[buffer.len++] = rspbyte;
-    }
+    parsefrontpanel(cmdbyte, rspbyte);
   }
 }
