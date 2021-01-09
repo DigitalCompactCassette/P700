@@ -170,7 +170,7 @@ void printhex(const uint8_t *begin, const uint8_t *end)
 {
   for (const uint8_t *s = begin; s != end; s++)
   {
-    static const char hex[] = "01234567890ABCDEF";
+    static const char hex[] = "0123456789ABCDEF";
 
     fputc(hex[*s >>   4], stdout);
     fputc(hex[*s &  0xF], stdout);
@@ -220,7 +220,13 @@ void parsebuffer(buf_t *buf, bool valid)
   uint8_t cmdlen = buf->rsp - 1;
   uint8_t rsplen = (buf->len - buf->rsp) - 1;
 
-  if (!valid)
+  // The VU meter command often responds with a checksum error. There is
+  // probably a bug in the firmware; maybe the code that updates the VU
+  // values and the code that calculates the checksums aren't synchronized
+  // so that checksums don't match the data.
+  // And maybe that's why the 3rd generation decks don't have a VU meter?
+  // I guess we'll never know.
+  if ((!valid) && (cmdlen != 1) && (cmd[0] != 0x5E)) // Ignore checksum for VU updates
   {
     // Don't try to interpret something that we already know is wrong
     fputs("CHECKSUM ERROR: ", stdout);
@@ -477,6 +483,8 @@ void parsebuffer(buf_t *buf, bool valid)
       {
       case 0x10: printf("CLEAN HEADS\r\n");   return;
       case 0x1F: printf("POWER FAIL\r\n");    return;
+
+      case 0x1A: // Seen while playing DCC175 recorded tape in service mode
       default:
         printf("%02X\r\n", rsp[1]);           return;
       }
@@ -502,6 +510,8 @@ void parsebuffer(buf_t *buf, bool valid)
     case 0x49:
       // Get tape type? This is issued right after the drawer finishes closing
       QR("TAPE TYPE -> ", 2);
+
+      printf("(%02X) ", rsp[0]);
 
       switch(rsp[1])
       {
@@ -631,6 +641,7 @@ void parsebuffer(buf_t *buf, bool valid)
 
       switch(rsp[1])
       {
+      case 0x01: printf("OFF \r\n");        return; // Stand by
       case 0x02: printf("STOP\r\n");        return; // Stop
       case 0x03: printf("READ\r\n");        return; // Reading
       case 0x04: printf("PLAY\r\n");        return; // Play
@@ -670,6 +681,23 @@ void parsebuffer(buf_t *buf, bool valid)
 
         printf("%16s %-16s\r\n", vustring(rsp[1]), vustring(rsp[2]));
       }
+      
+      return;
+
+    case 0x5F:
+      // Service mode playback error reporting.
+      // The command parameter byte indicates the requested track (1-9)
+      // or is set to 0x10 to request a bit pattern of all the (main) heads.
+      // The bit order is: head 1=0x80, head 2=0x40, head 3=0x20 etc.
+      // The first byte of the response is always 0 (so the AUX track is
+      // not part of the result for more 0x10). 
+      // The second response byte is between 0 and 20 decimal for individual
+      // heads. According to the service manual, the individual head error
+      // counts can basically be multiplied by 5 to get the percentage of
+      // errors.
+      QCR("BITS ", 2, 2);
+
+      printf("%02X -> %02X %02X\r\n", cmd[1], rsp[0], rsp[1]);
 
       return;
 
@@ -746,7 +774,7 @@ int main(void)
 
     // Data should come in on both connections at the same time.
     // So wait until there's data on both ports.
-    while (!ringbuffer_num(&rb_cmd) && !ringbuffer_num(&rb_rsp))
+    while (!ringbuffer_num(&rb_cmd) || !ringbuffer_num(&rb_rsp))
     {
       // Nothing
     }
