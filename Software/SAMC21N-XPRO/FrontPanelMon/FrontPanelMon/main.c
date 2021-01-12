@@ -45,16 +45,23 @@
 
 #define DEBOUNCE_COUNT 5
 
+//---------------------------------------------------------------------------
+// Buffer type to hold two sequences of data
+//
+// For the front side bus, the two sequences are a command and a response.
+// For the L3 bus, the two sequences are address and data.
 typedef struct
 {
   uint8_t buf[255];
-  uint8_t len; // Total length
-  uint8_t rsp; // Index of response
+  uint8_t len; // Total number of bytes stored length
+  uint8_t rsp; // Index of the start of the second sequence
+  bool ready; // Incoming data complete
 
 } buf_t;
 
-
-bool chattymode = false;
+bool chattymode = true;
+bool enablefp = true;
+bool enablel3 = false;
 
 struct io_descriptor *spi_cmd; // From front panel
 struct io_descriptor *spi_rsp; // From dig-mcu
@@ -63,6 +70,13 @@ char cmdbuf[256];
 char rspbuf[256];
 struct ringbuffer rb_cmd;
 struct ringbuffer rb_rsp;
+
+struct io_descriptor *spi_l3;  // L3 bus
+
+buf_t l3buf[16];
+bool l3mode; // false=address, true=data
+buf_t *pl3buf; // current receive buffer
+uint l3overrun;
 
 
 //---------------------------------------------------------------------------
@@ -88,6 +102,96 @@ void rsp_rx_callback(struct spi_s_async_descriptor *spi)
 
 
 //---------------------------------------------------------------------------
+// L3 mode IRQ handler; this is called when the L3MODE pin changes
+void l3mode_callback(void)
+{
+  l3mode = gpio_get_pin_level(L3MODE);
+
+  // Is this the start of a new sequence?
+  if ((!l3mode) && ((!pl3buf) || (pl3buf->len)))
+  {
+    // Do we already have a buffer?
+    if (pl3buf)
+    {
+      // If we overran the buffers, wait patiently until the next buffer
+      // is freed by the reader
+      if (pl3buf->ready)
+      {
+        return;
+      }
+      
+      // Check if the buffer has an address and data.
+      if (pl3buf->rsp) // Only nonzero if at least one data byte seen
+      {
+        // Mark the buffer as finished so the reader will know it can start
+        // parsing it.
+        pl3buf->ready = true;
+
+        // Switch to the next buffer
+        if ((pl3buf - l3buf) < ARRAY_SIZE(l3buf) - 1)
+        {
+          pl3buf++;
+        }
+        else
+        {
+          pl3buf = &l3buf[0];
+        }
+      }
+      else
+      {
+        // The current buffer doesn't have any data in it -- the L3MODE must
+        // have gone HIGH, then LOW again. Continue writing to the same
+        // buffer
+        return;
+      }
+    }
+    else
+    {
+      pl3buf = &l3buf[0];
+    }
+
+    // We now moved to a new buffer. Check if it's free.
+    if (pl3buf->ready)
+    {
+      // The read code hasn't been here yet.
+      l3overrun++;
+    }
+  }
+
+  // TODO: Read SPI data register using _spi_s_async_read_one to sync the shift register?
+}
+
+
+//---------------------------------------------------------------------------
+void l3spi_callback(struct spi_s_async_descriptor *spi)
+{
+  // Make sure we have a buffer first. The buffer pointer is not assigned
+  // until the L3MODE line goes low.
+  // Also don't add bytes to a buffer that was already finished; that's an
+  // overrun which is dealt with by the L3MODE interrupt handler.
+  if (pl3buf && !pl3buf->ready)
+  {
+    // Make sure there is space
+    if (pl3buf->len < ARRAY_SIZE(pl3buf->buf))
+    {
+      uint8_t rxbyte;
+
+      ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful or we wouldn't be here
+
+      // If this is the first data (not address) byte, set the index
+      if (l3mode && !pl3buf->rsp)
+      {
+        pl3buf->rsp = pl3buf->len;
+      }
+
+      // Store the byte
+      pl3buf->buf[pl3buf->len++] = rxbyte;
+    }
+  }
+}
+
+
+//---------------------------------------------------------------------------
 // Reinitialize hardware
 void reinit(void)
 {
@@ -95,6 +199,8 @@ void reinit(void)
 
   printf("\r\nHardware initialized\r\n");
 
+  // Front panel bus
+  
   ringbuffer_init(&rb_cmd, cmdbuf, sizeof(cmdbuf));
   ringbuffer_init(&rb_rsp, rspbuf, sizeof(rspbuf));
 
@@ -105,6 +211,16 @@ void reinit(void)
   spi_s_async_register_callback(&SPI_EXT2, SPI_S_CB_RX, (FUNC_PTR)rsp_rx_callback);
   spi_s_async_enable(&SPI_EXT1);
   spi_s_async_enable(&SPI_EXT2);
+
+  // L3 bus
+
+  ext_irq_register(L3MODE, l3mode_callback);
+  ext_irq_enable(L3MODE);
+
+  spi_s_async_get_io_descriptor(&SPI_EXT3, &spi_l3);
+
+  spi_s_async_register_callback(&SPI_EXT3, SPI_S_CB_RX, (FUNC_PTR)l3spi_callback);
+  spi_s_async_enable(&SPI_EXT3);
 }
 
 
@@ -123,10 +239,26 @@ bool check_button(void)
     // Button released
     if (count == DEBOUNCE_COUNT)
     {
-      //reinit();
+      reinit();
 
-      chattymode = !chattymode;
-      gpio_set_pin_level(LED0, chattymode);
+      // Toggle the enablefp and enablel3 flags:
+      // FP off / L3 on  => FP on  / L3 on
+      // FP on  / L3 on  => FP on  / L3 off
+      // FP on  / L3 off => FP off / L3 on
+      // The two flags are never both off (unless initialized that way)
+      if (!enablefp)
+      {
+        enablefp = true;
+      }
+      else if (enablel3)
+      {
+        enablel3 = false;
+      }
+      else
+      {
+        enablefp = false;
+        enablel3 = true;
+      }
     }
 
     count = 0;
@@ -213,6 +345,14 @@ void hexdumpmessage(
 
 
 //---------------------------------------------------------------------------
+// Alternative for the above, using a buf_t as parameter
+void hexdumpbuf(
+  buf_t *pbuf)
+{
+  hexdumpmessage(pbuf->buf, pbuf->rsp, pbuf->buf + pbuf->rsp, pbuf->len - pbuf->rsp);
+}
+
+//---------------------------------------------------------------------------
 // Parse a buffer
 void dumpfrontpanelmessage(
   uint8_t *cmd,
@@ -220,16 +360,6 @@ void dumpfrontpanelmessage(
   uint8_t *rsp,
   uint8_t rsplen)
 {
-  // Reset first bits. These alternate between 1 and 0 on subsequent
-  // commands and responses, probably to ensure that the firmware always
-  // works on live data, not on stale data that happens when things stop
-  // responding because of some technical problem.
-  (*cmd) &= 0x7F;
-  (*rsp) &= 0x7F;
-
-  // Dump command byte to help navigate the code
-  //printhex(cmd, cmd + 1);
-
   switch(*cmd)
   {
 // Shortcuts
@@ -672,7 +802,8 @@ void dumpfrontpanelmessage(
     {
       QR("VU -> ", 3);
 
-      printf("%16s %-16s\r\n", vustring(rsp[1]), vustring(rsp[2]));
+      // No line feed so the text window doesn't scroll
+      printf("%16s %-16s\r", vustring(rsp[1]), vustring(rsp[2]));
     }
       
     return;
@@ -709,9 +840,10 @@ void dumpfrontpanelmessage(
       if ((chattymode) || (rsp[2] != track))
       {
         P("Time -> ");
-        printf("Track %02X Time %02X:%02X:%02X Counter %02X%02X [1=%02X 6=%02X 9=%02X]\r\n", 
-          rsp[2], rsp[3], rsp[4], rsp[5], rsp[7], rsp[8], 
-          rsp[1], rsp[6], rsp[9]);
+        //printf("Track %02X Time %X:%02X:%02X Counter %02X%02X [1/2=%02X%X 6=%02X 9=%02X]\r\n", 
+        printf("                                T%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r", 
+          rsp[2], rsp[3] & 0xF, rsp[4], rsp[5], rsp[7], rsp[8],
+          rsp[1], rsp[3] >> 4, rsp[6], rsp[9]);
 
         track = rsp[2];
       }
@@ -741,8 +873,21 @@ dump:
 
 //---------------------------------------------------------------------------
 // Parse command and response bytes for the front panel bus
-void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
+void capturefrontpanel()
 {
+  // Data should come in on both front panel connections at the same time.
+  // Ignore the call if there is no data on one of the connections
+  if (!ringbuffer_num(&rb_cmd) || !ringbuffer_num(&rb_rsp))
+  {
+    return;
+  }
+
+  uint8_t cmdbyte;
+  uint8_t rspbyte;
+
+  ringbuffer_get(&rb_cmd, &cmdbyte);
+  ringbuffer_get(&rb_rsp, &rspbyte);
+
   static uint8_t checksum = 0;
   static bool valid = true;
   static buf_t buffer;
@@ -756,7 +901,7 @@ void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
   // That means we get out of sync if the first byte from either side is
   // 0xFF but this is very unlikely and probably easy to recognize. For
   // one thing, the checksum will not match if we get it wrong.
-  if ((cmdbyte != 0xFF) && (cmdbyte != 0xEE))
+  if (cmdbyte != 0xFF)
   {
     // Data came from front panel
 
@@ -770,6 +915,13 @@ void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
         valid = false;
       }
 
+      // clear msb's. These alternate between 1 and 0 on subsequent
+      // commands and responses, probably to ensure that the firmware always
+      // works on live data, not on stale data that happens when things stop
+      // responding because of some technical problem.
+      buffer.buf[0] &= 0x7F;
+      buffer.buf[buffer.rsp] &= 0x7F;
+
       // The VU meter command often responds with a checksum error. There is
       // probably a bug in the firmware; maybe the code that updates the VU
       // values and the code that calculates the checksums aren't synchronized
@@ -780,22 +932,20 @@ void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
       {
         // Don't try to interpret something that we already know is wrong
         fputs("CHECKSUM ERROR: ", stdout);
-        hexdumpmessage(buffer.buf, buffer.rsp, buffer.buf + buffer.rsp, buffer.len - buffer.rsp);
+        hexdumpbuf(&buffer);
       }
       else if ((buffer.len < 4) || (buffer.rsp < 2))
       {
         // We didn't get at least 2 bytes for command and 2 bytes for response.
         printf("IGNORING: ");
-        hexdumpmessage(buffer.buf, buffer.rsp, buffer.buf + buffer.rsp, buffer.len - buffer.rsp);
+        hexdumpbuf(&buffer);
       }
       else
       {
         // Note: Interpreting the data may be an expensive operation.
         // That's okay, the receive callbacks will just gather up data
         // into the ringbuffers in the background.
-        gpio_toggle_pin_level(LED0);
         dumpfrontpanelmessage(&buffer.buf[0], buffer.rsp - 1, &buffer.buf[buffer.rsp], (buffer.len - buffer.rsp) - 1);
-        gpio_toggle_pin_level(LED0);
       }
       
       buffer.len = buffer.rsp = 0;
@@ -853,6 +1003,107 @@ void parsefrontpanel(uint8_t cmdbyte, uint8_t rspbyte)
 
 
 //---------------------------------------------------------------------------
+// Parse L3 address and data
+void dol3command(buf_t *pbuf)
+{
+  // The buffer pointer should always be valid and the buffer should always
+  // have a nonzero response index
+  // If there are addresses without response, they are combined
+  // together in the same buffer. It's impossible (because of the interrupt
+  // handler logic) to have a buffer that has data but no address.
+  if (!pbuf || !pbuf->rsp)
+  {
+    return;
+  }
+
+/* Commented out: This shows a lot of data but I suspect it's misinterpreting it.
+
+  for (uint cmdindex = 0; cmdindex < pbuf->rsp; cmdindex++)
+  {
+    uint8_t cmd = pbuf->buf[cmdindex];
+
+    switch (cmd)
+    {
+      case 0x00: fputs("DRP TFE RDSPEED\r\n",     stdout); return; // Read SPEED register
+      case 0x10: fputs("DRP TFE LDSET0\r\n",      stdout); return; // Load new TFE settings register 0
+      case 0x11: fputs("DRP TFE LDSET1\r\n",      stdout); return; // Load new TFE settings register 1
+      case 0x12: fputs("DRP TFE LDSET2\r\n",      stdout); return; // Load new TFE settings register 2
+      case 0x13: fputs("DRP TFE LDSET3\r\n",      stdout); return; // Load new TFE settings register 3
+      case 0x15: fputs("DRP TFE LDSPDDTY\r\n",    stdout); return; // Load SPDDTY register
+      case 0x17: fputs("DRP TFE LDBYTCNT\r\n",    stdout); return; // Load BYTCNT register
+      case 0x18: fputs("DRP TFE LDRACCNT\r\n",    stdout); return; // Load RACCNT register
+      case 0x20: fputs("DRP TFE RDAUX\r\n",       stdout); return; // Read AUXILIARY information
+      case 0x21: fputs("DRP TFE RDSYS\r\n",       stdout); return; // Read SYSINFO
+      case 0x22:
+      case 0x62:
+      case 0xA2:
+      case 0xE2: fputs("DRP TFE RDDRAC\r\n",      stdout); return; // Read RAM data bytes (8 bits) from quarter YZ
+      case 0x23:
+      case 0x63:
+      case 0xA3:
+      case 0xE3: fputs("DRP TFE RDWDRAC\r\n",     stdout); return; // Read RAM data words (12 bits) from quarter YZ
+      case 0x30: fputs("DRP TFE WRAUX\r\n",       stdout); return; // Write AUXILIARY information
+      case 0x31: fputs("DRP TFE WRSYS\r\n",       stdout); return; // Write SYSINFO
+      case 0x32:
+      case 0x72:
+      case 0xB2:
+      case 0xF2: fputs("DRP TFE WRDRAC\r\n",      stdout); return; // Write RAM data bytes (8 bits) to quarter YZ
+      case 0x33:
+      case 0x73:
+      case 0xB3:
+      case 0xF3: fputs("DRP TFE WRWDRAC\r\n",     stdout); return; // Write RAM data words (12 bits) to quarter YZ
+
+      case 0x30: fputs("DRP DEQ WRCOEF\r\n",      stdout); return; // Write FIR coefficients to the digital equalizer buffer bank
+      case 0x20: fputs("DRP DEQ RDCOEF\r\n",      stdout); return; // Read FIR coefficients from the digital equalizer active bank
+      case 0x13: fputs("DRP DEQ LDCOEFCNT\r\n",   stdout); return; // Load FIR coefficient counter
+      case 0x14: fputs("DRP DEQ LDFCTRL\r\n",     stdout); return; // Load filter control register
+      case 0x16: fputs("DRP DEQ LDT1SEL\r\n",     stdout); return; // Load CHTST1 pin selection register
+      case 0x17: fputs("DRP DEQ LDT2SEL\r\n",     stdout); return; // Load CHTST2 pin selection register
+      case 0x18: fputs("DRP DEQ LDTAEYE\r\n",     stdout); return; // Load ANAEYE channel selection register
+      case 0x19: fputs("DRP DEQ LDAEC\r\n",       stdout); return; // Load AEC counter
+      case 0x22: fputs("DRP DEQ RDAEC\r\n",       stdout); return; // Read AEC counter
+      case 0x24: fputs("DRP DEQ RDSSPD\r\n",      stdout); return; // Read SEARCH speed register
+      case 0x12: fputs("DRP DEQ LDINTMSK\r\n",    stdout); return; // Load interrupt mask register
+      case 0x10: fputs("DRP DEQ LDDEQ3SET\r\n",   stdout); return; // Load digital equalizer settings register
+      case 0x11: fputs("DRP DEQ LDCLKSET\r\n",    stdout); return; // Load PLL clock extraction settings register
+* /
+      default:
+        return;
+    }
+*/
+
+    hexdumpbuf(pbuf);
+//  }
+
+}
+
+//---------------------------------------------------------------------------
+// Parse command and response for the L3 bus
+void capturel3()
+{
+  static uint index;
+  buf_t *pbuf = &l3buf[index];
+
+  if (l3overrun)
+  {
+    printf("L3 bus overrun %u\r\n", l3overrun);
+    l3overrun = 0;
+  }
+
+  if (pbuf->ready)
+  {
+    dol3command(pbuf);
+
+    pbuf->len = pbuf->rsp = 0;
+    pbuf->ready = false;
+    if (++index >= ARRAY_SIZE(l3buf))
+    {
+      index = 0;
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
 // Main application
 int main(void)
 {
@@ -862,24 +1113,21 @@ int main(void)
 
   for(;;)
   {
-    uint8_t cmdbyte;
-    uint8_t rspbyte;
-
     if (check_button())
-    {
-      continue;
-    }
-
-    // Data should come in on both connections at the same time.
-    // So wait until there's data on both ports.
-    while (!ringbuffer_num(&rb_cmd) || !ringbuffer_num(&rb_rsp))
     {
       // Nothing
     }
-    
-    ringbuffer_get(&rb_cmd, &cmdbyte);
-    ringbuffer_get(&rb_rsp, &rspbyte);
 
-    parsefrontpanel(cmdbyte, rspbyte);
+    if (enablefp)
+    {
+      capturefrontpanel();
+    }
+
+    if (enablel3)
+    {
+      capturel3();
+    }
+
+    gpio_toggle_pin_level(LED0);
   }
 }

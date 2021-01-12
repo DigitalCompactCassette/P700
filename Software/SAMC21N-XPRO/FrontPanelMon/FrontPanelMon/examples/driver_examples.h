@@ -12,11 +12,15 @@
 extern "C" {
 #endif
 
+void L3MODE_IRQ_example(void);
+
 void SPI_EXT1_example(void);
 
 void SER_EDBG_example(void);
 
 void SPI_EXT2_example(void);
+
+void SPI_EXT3_example(void);
 
 #ifdef __cplusplus
 }

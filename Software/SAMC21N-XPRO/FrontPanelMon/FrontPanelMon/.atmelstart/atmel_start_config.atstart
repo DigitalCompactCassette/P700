@@ -324,6 +324,136 @@ drivers:
     variant: null
     clocks:
       domain_group: null
+  L3MODE_IRQ:
+    user_label: L3MODE_IRQ
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::EIC::driver_config_definition::Default::HAL:Driver:Ext.IRQ
+    functionality: External_IRQ
+    api: HAL:Driver:Ext_IRQ
+    configuration:
+      eic_arch_asynch0: false
+      eic_arch_asynch1: false
+      eic_arch_asynch10: false
+      eic_arch_asynch11: false
+      eic_arch_asynch12: false
+      eic_arch_asynch13: false
+      eic_arch_asynch14: false
+      eic_arch_asynch15: false
+      eic_arch_asynch2: false
+      eic_arch_asynch3: false
+      eic_arch_asynch4: false
+      eic_arch_asynch5: false
+      eic_arch_asynch6: false
+      eic_arch_asynch7: false
+      eic_arch_asynch8: false
+      eic_arch_asynch9: false
+      eic_arch_cksel: Clocked by GCLK
+      eic_arch_debounce_enable0: false
+      eic_arch_debounce_enable1: false
+      eic_arch_debounce_enable10: false
+      eic_arch_debounce_enable11: false
+      eic_arch_debounce_enable12: false
+      eic_arch_debounce_enable13: false
+      eic_arch_debounce_enable14: false
+      eic_arch_debounce_enable15: false
+      eic_arch_debounce_enable2: false
+      eic_arch_debounce_enable3: false
+      eic_arch_debounce_enable4: false
+      eic_arch_debounce_enable5: false
+      eic_arch_debounce_enable6: false
+      eic_arch_debounce_enable7: false
+      eic_arch_debounce_enable8: false
+      eic_arch_debounce_enable9: false
+      eic_arch_enable_irq_setting0: false
+      eic_arch_enable_irq_setting1: false
+      eic_arch_enable_irq_setting10: false
+      eic_arch_enable_irq_setting11: false
+      eic_arch_enable_irq_setting12: false
+      eic_arch_enable_irq_setting13: false
+      eic_arch_enable_irq_setting14: false
+      eic_arch_enable_irq_setting15: false
+      eic_arch_enable_irq_setting2: false
+      eic_arch_enable_irq_setting3: false
+      eic_arch_enable_irq_setting4: false
+      eic_arch_enable_irq_setting5: false
+      eic_arch_enable_irq_setting6: false
+      eic_arch_enable_irq_setting7: false
+      eic_arch_enable_irq_setting8: true
+      eic_arch_enable_irq_setting9: false
+      eic_arch_extinteo0: false
+      eic_arch_extinteo1: false
+      eic_arch_extinteo10: false
+      eic_arch_extinteo11: false
+      eic_arch_extinteo12: false
+      eic_arch_extinteo13: false
+      eic_arch_extinteo14: false
+      eic_arch_extinteo15: false
+      eic_arch_extinteo2: false
+      eic_arch_extinteo3: false
+      eic_arch_extinteo4: false
+      eic_arch_extinteo5: false
+      eic_arch_extinteo6: false
+      eic_arch_extinteo7: false
+      eic_arch_extinteo8: false
+      eic_arch_extinteo9: false
+      eic_arch_filten0: false
+      eic_arch_filten1: false
+      eic_arch_filten10: false
+      eic_arch_filten11: false
+      eic_arch_filten12: false
+      eic_arch_filten13: false
+      eic_arch_filten14: false
+      eic_arch_filten15: false
+      eic_arch_filten2: false
+      eic_arch_filten3: false
+      eic_arch_filten4: false
+      eic_arch_filten5: false
+      eic_arch_filten6: false
+      eic_arch_filten7: false
+      eic_arch_filten8: false
+      eic_arch_filten9: false
+      eic_arch_nmi_ctrl: false
+      eic_arch_nmiasynch: false
+      eic_arch_nmifilten: false
+      eic_arch_nmisense: No detection
+      eic_arch_prescaler0: Divided by 2
+      eic_arch_prescaler1: Divided by 2
+      eic_arch_sense0: No detection
+      eic_arch_sense1: No detection
+      eic_arch_sense10: No detection
+      eic_arch_sense11: No detection
+      eic_arch_sense12: No detection
+      eic_arch_sense13: No detection
+      eic_arch_sense14: No detection
+      eic_arch_sense15: No detection
+      eic_arch_sense2: No detection
+      eic_arch_sense3: No detection
+      eic_arch_sense4: No detection
+      eic_arch_sense5: No detection
+      eic_arch_sense6: No detection
+      eic_arch_sense7: No detection
+      eic_arch_sense8: Both-edges detection
+      eic_arch_sense9: No detection
+      eic_arch_states0: '3'
+      eic_arch_states1: '3'
+      eic_arch_tickon: The sampling rate is EIC clock
+    optional_signals:
+    - identifier: L3MODE_IRQ:EXTINT/8
+      pad: PA28
+      mode: Enabled
+      configuration: null
+      definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::optional_signal_definition::EIC.EXTINT.8
+      name: EIC/EXTINT/8
+      label: EXTINT/8
+    variant: null
+    clocks:
+      domain_group:
+        nodes:
+        - name: EIC
+          input: Generic clock generator 0
+          external: false
+          external_frequency: 0
+        configuration:
+          eic_gclk_selection: Generic clock generator 0
   GCLK:
     user_label: GCLK
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::GCLK::driver_config_definition::GCLK::HAL:HPL:GCLK
@@ -742,6 +872,57 @@ drivers:
         configuration:
           core_gclk_selection: Generic clock generator 0
           slow_gclk_selection: Generic clock generator 3
+  SPI_EXT3:
+    user_label: SPI_EXT3
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::SERCOM7::driver_config_definition::SPI.Slave::HAL:Driver:SPI.Slave.Async
+    functionality: SPI
+    api: HAL:Driver:SPI_Slave_Async
+    configuration:
+      spi_slave_advanced: true
+      spi_slave_arch_addr: 0
+      spi_slave_arch_addrmask: 0
+      spi_slave_arch_amode: Address mask
+      spi_slave_arch_amode_en: false
+      spi_slave_arch_cpha: Sample input on trailing edge
+      spi_slave_arch_cpol: SCK is high when idle
+      spi_slave_arch_dbgstop: Keep running
+      spi_slave_arch_dord: LSB first
+      spi_slave_arch_ibon: In data stream
+      spi_slave_arch_ploaden: false
+      spi_slave_arch_runstdby: false
+      spi_slave_arch_ssde: false
+      spi_slave_character_size: 8 bits
+      spi_slave_rx_enable: true
+    optional_signals: []
+    variant:
+      specification: TXPO=3, RXPO=2
+      required_signals:
+      - name: SERCOM7/PAD/0
+        pad: PC12
+        label: MISO
+      - name: SERCOM7/PAD/1
+        pad: PC13
+        label: _SS
+      - name: SERCOM7/PAD/2
+        pad: PC14
+        label: MOSI
+      - name: SERCOM7/PAD/3
+        pad: PC11
+        label: SCK
+    clocks:
+      domain_group:
+        nodes:
+        - name: Core
+          input: Generic clock generator 0
+          external: false
+          external_frequency: 0
+        - name: Slow
+          input: Generic clock generator 3
+          external: false
+          external_frequency: 0
+        configuration:
+          core_gclk_selection: Generic clock generator 0
+          slow_gclk_selection: Generic clock generator 3
 pads:
   LED0:
     name: PC05
@@ -774,6 +955,30 @@ pads:
     user_label: SPI_EDBG_SS
     configuration:
       pad_initial_level: High
+  PC11:
+    name: PC11
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC11
+    mode: Digital output
+    user_label: PC11
+    configuration: null
+  PC12:
+    name: PC12
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC12
+    mode: Digital output
+    user_label: PC12
+    configuration: null
+  PC13:
+    name: PC13
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC13
+    mode: Digital input
+    user_label: PC13
+    configuration: null
+  PC14:
+    name: PC14
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC14
+    mode: Digital input
+    user_label: PC14
+    configuration: null
   PA18:
     name: PA18
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA18
@@ -810,6 +1015,12 @@ pads:
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC28
     mode: Digital input
     user_label: PC28
+    configuration: null
+  L3MODE:
+    name: PA28
+    definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PA28
+    mode: Digital input
+    user_label: L3MODE
     configuration: null
   PB00:
     name: PB00
