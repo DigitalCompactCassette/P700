@@ -972,7 +972,8 @@ pads:
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC13
     mode: Digital input
     user_label: PC13
-    configuration: null
+    configuration:
+      pad_pull_config: Pull-down
   PC14:
     name: PC14
     definition: Atmel:SAMC21N_Drivers:0.0.1::SAMC21N18A-AN::pad::PC14
