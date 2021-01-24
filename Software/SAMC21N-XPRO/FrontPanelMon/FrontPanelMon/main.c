@@ -1,7 +1,7 @@
 /**
  * \file
  *
- * \brief Application implement
+ * \brief Application implementation
  *
  * Copyright (c) 2019 Jac Goudsmit
  *
@@ -461,6 +461,10 @@ void dumpfrontpanelmessage(
 
     break;
 
+  case 0x29:
+    // Rec/pause?
+    break;
+    
   case 0x2A:
     // Sector. This is issued after the 10 01 (SIDE A/B) command.
     // Presumably the sector can be 1 to 4 inclusive but without 4-sector
@@ -479,11 +483,23 @@ void dumpfrontpanelmessage(
 
     return;
 
-  case 0x36:
-    // Recorder ID. Sent to dig-mcu after reset
-    QC("FRONT PANEL ID: ", 42);
+  case 0x35:
+    // 35 18 42 10 seen for REC/PAUSE. Configure inputs perhaps?
+    break;
 
-    printstring(cmd + 1, cmd + cmdlen);
+  case 0x36:
+    // Send text
+    QC("SET TEXT: ", 42);
+
+    switch(cmd[1])
+    {
+    case 0xFD: printf("DECKID="); break;  // Sent at initialization time to store deck ID
+    case 0xFA: printf("TITLE=");  break;  // Sent when editing title of current song
+    default:
+      printf("%02X ", cmd[1]);
+    }
+
+    printstring(cmd + 2, cmd + cmdlen);
     fputs("\r\n", stdout);
 
     return;
@@ -540,6 +556,10 @@ void dumpfrontpanelmessage(
     // Read DCC. This is issued after inserting a DCC cassette.
     Q("READ DCC.");
 
+  case 0x3C:
+    // Write DCC. This is issued after setting the text for the current track
+    Q("WRITE DCC.");
+
   case 0x41:
     // Poll status
     // This is generated often and is very chatty.
@@ -567,16 +587,16 @@ void dumpfrontpanelmessage(
           if (rsp[1] & 0x10) fputs("DRAWER ",     stdout); // Drawer change (issue Get Drawer State)
           if (rsp[1] & 0x20) fputs("EOT ",        stdout); // End of Tape (sector)
           if (rsp[1] & 0x40) fputs("BOT ",        stdout); // Beginning of Tape (sector)
-          if (rsp[1] & 0x80) fputs("(A80) ",      stdout);
+          if (rsp[1] & 0x80) fputs("FAST ",       stdout); // Winding/rewinding without heads applied; time is deck time?
 
           if (rsp[2] & 0x01) fputs("LYRICS ",     stdout); // Lyrics (issue Get DCC Long Text)
           if (rsp[2] & 0x02) fputs("MARKER ",     stdout); // Marker change (issue Get Marker)
           if (rsp[2] & 0x04) fputs("(B4) ",       stdout);
           if (rsp[2] & 0x08) fputs("(B8) ",       stdout);
           if (rsp[2] & 0x10) fputs("(B10) ",      stdout);
-          if (rsp[2] & 0x20) fputs("(B20) ",      stdout);
-          if (rsp[2] & 0x40) fputs("(B40) ",      stdout);
-          if (rsp[2] & 0x80) fputs("(B80) ",      stdout);
+          if (rsp[2] & 0x20) fputs("TRACK ",      stdout); // Track info available? Seen when playing past track marker
+          if (rsp[2] & 0x40) fputs("ABSTIME ",    stdout); // Absolute time known (SUDCC/PDCC)?
+          if (rsp[2] & 0x80) fputs("TOTALTIME ",  stdout); // Total time known on PDCC? FP issues PREREC TAPE TIME
 
           if (rsp[3] & 0x80) fputs("DECKTIME ",   stdout); // No absolute tape time, using deck time?
           if (rsp[3] & 0x40) fputs("TAPETIME ",   stdout); // Using tape time code
@@ -599,6 +619,7 @@ void dumpfrontpanelmessage(
 
     switch(rsp[1])
     {
+    case 0x06: printf("CHECK DIG IN\r\n");  return;
     case 0x10: printf("CLEAN HEADS\r\n");   return;
     case 0x1F: printf("POWER FAIL\r\n");    return;
 
@@ -749,6 +770,7 @@ void dumpfrontpanelmessage(
     case 0x02: printf("TRACK\r\n");       return;
     case 0x03: printf("REVERSE\r\n");     return; // Switch to side B
     case 0x07: printf("SKIP +1\r\n");     return; // Skip marker? Also seen at beginning of 175-recorded tape
+    case 0x0B: printf("REUSE\r\n");       return; // End of recording, beginning of reusable tape
     case 0x0D: printf("INTRO SKIP\r\n");  return; // Skip over begin of sector 1
     case 0x14: printf("BEGIN SEC\r\n");   return; // After reversing
     case 0x0E: 
@@ -778,8 +800,23 @@ void dumpfrontpanelmessage(
       
     case 0x15: printf("SBY<\r\n");        return; // Search arriving at track
     case 0x16: printf("SBY>\r\n");        return; // Search arriving at track
-      
+
+    case 0x2A: printf("END \r\n");        return; // End of recording marker found
+
     case 0x30: printf("SKIP\r\n");        return; // Skipping intro
+
+    case 0x22: 
+    case 0x23:
+    case 0x24:
+    case 0x26: // All used when recording title
+    
+    case 0x19:
+    case 0x0E:
+    case 0x32:
+    case 0x34: // Seen during APPEND
+    
+    case 0x2B: // REC/PAUSE?
+    
     default:
       printf("%02X\r\n", rsp[1]);         return; // TODO: decode other codes
     }
@@ -806,10 +843,14 @@ void dumpfrontpanelmessage(
     // Values are negative decibels for left and right.
     if (chattymode)
     {
+      // Cursor off
+      fputs("\x1B[?25l", stdout);
       QR("VU -> ", 3);
 
       // No line feed so the text window doesn't scroll
       printf("%16s %-16s\r", vustring(rsp[1]), vustring(rsp[2]));
+      // Cursor on
+      fputs("\x1B[?25h", stdout);
     }
       
     return;
@@ -845,11 +886,17 @@ void dumpfrontpanelmessage(
 
       if ((chattymode) || (rsp[2] != track))
       {
+        // Cursor off
+        fputs("\x1B[?25l", stdout);
         P("Time -> ");
         //printf("Track %02X Time %X:%02X:%02X Counter %02X%02X [1/2=%02X%X 6=%02X 9=%02X]\r\n", 
-        printf("                                T%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r", 
+        //printf("                                T%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r", 
+        // ESC [ <n> C is cursor forward by n places
+        printf("\x1B[32CT%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r", 
           rsp[2], rsp[3] & 0xF, rsp[4], rsp[5], rsp[7], rsp[8],
           rsp[1], rsp[3] >> 4, rsp[6], rsp[9]);
+        // Cursor on
+        fputs("\x1B[?25h", stdout);
 
         track = rsp[2];
       }
