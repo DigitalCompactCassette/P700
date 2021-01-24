@@ -319,13 +319,14 @@ void printhex(const uint8_t *begin, const uint8_t *end)
 inline const char *vustring(uint8_t vu)
 {
   const char *vubar = "================";
+  const uint vu_limit = 45;
 
-  if (vu > 95)
+  if (vu > vu_limit)
   {
-    vu = 95;
+    vu = vu_limit;
   }
 
-  return vubar + (((uint)vu * 16) / 96);
+  return vubar + (((uint)vu * 16) / (vu_limit + 1));
 }
 
 
@@ -677,14 +678,15 @@ void dumpfrontpanelmessage(
     break;
 
   case 0x51:
-    // Get long title from [s]udcc
-    QCR("GET LONG UDCC TEXT: ", 2, 41);
+    // Get long text
+    QCR("GET LONG TEXT: ", 2, 41);
 
     switch(cmd[1])
     {
-    case 0xFA: printf("Track -> "); break;    // Get track name?
-    case 0xE0: printf("TOC track name -> ");  // Not sure; Used when rewinding sudcc to beginning, but returns error
-    case 0x01: printf("Lyrics -> ");          // Possibly language number for lyrics?
+    case 0xFA: printf("Track -> ");                 break; // Get track name?
+    case 0xE0: printf("TOC track name -> ");        break; // Not sure; Used when rewinding sudcc to beginning, but returns error
+    case 0x01: printf("Lyrics / Album Title -> ");  break; // Possibly language number for lyrics?
+    case 0x03: printf("Artist -> ");                break; // Album artist on PDCC
     default:   printf("%02X -> ", cmd[1]);
     }
 
@@ -694,8 +696,8 @@ void dumpfrontpanelmessage(
     return;
 
   case 0x52:
-    // Get long title from pdcc
-    QCR("GET LONG PDCC TEXT: ", 2, 41);
+    // Get track title
+    QCR("GET TRACK TITLE: ", 2, 41);
 
     printf("Track %u -> ", cmd[1]);
     printstring(rsp + 1, rsp + rsplen);
@@ -704,20 +706,24 @@ void dumpfrontpanelmessage(
     return;
 
   case 0x53:
-    // Get short title from [s]udcc
-    QCR("GET SHORT UDCC TEXT -> ", 2, 13);
+    // Get short text
+    QCR("GET SHORT TEXT -> ", 2, 13);
 
-    if (cmd[1] == 0xFA) // E0 is also used when rewinding sudcc to beginning, but returns error
+    switch(cmd[1])
     {
-      printstring(rsp + 1, rsp + rsplen);
-      fputs("\r\n", stdout);
-      return;
+    case 0xFA: printf("Track -> ");                 break; // Get track name
+    // Other codes see 0x51?
+    default:   printf("%02X -> ", cmd[1]);
     }
-    break;
+    
+    printstring(rsp + 1, rsp + rsplen);
+    fputs("\r\n", stdout);
+
+    return;
 
   case 0x54:
-    // Get short title from [s]udcc
-    QCR("GET SHORT PDCC TEXT: ", 2, 13);
+    // Get short track title
+    QCR("GET SHORT TRACK TITLE: ", 2, 13);
 
     printf("Track %u -> ", cmd[1]);
     printstring(rsp + 1, rsp + rsplen);
