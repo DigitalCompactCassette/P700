@@ -55,13 +55,12 @@ typedef struct
   uint8_t buf[255];
   uint8_t len; // Total number of bytes stored length
   uint8_t rsp; // Index of the start of the second sequence
-  bool ready; // Incoming data complete
 
 } buf_t;
 
-bool chattymode = true;
-bool enablefp = true;
-bool enablel3 = false;
+bool chattymode = false;
+bool enablefp = false;
+bool enablel3 = true;
 
 struct io_descriptor *spi_cmd; // From front panel
 struct io_descriptor *spi_rsp; // From dig-mcu
@@ -73,10 +72,13 @@ struct ringbuffer rb_rsp;
 
 struct io_descriptor *spi_l3;  // L3 bus
 
-buf_t l3buf[16];
-bool l3mode; // false=address, true=data
-buf_t *pl3buf; // current receive buffer
-uint l3overrun;
+char rbl3buf[256];
+struct ringbuffer rb_l3;
+
+uint8_t l3mode; // 0=address, 1=data
+buf_t l3buf;
+uint l3overflow;
+bool l3sync;
 
 
 //---------------------------------------------------------------------------
@@ -85,8 +87,16 @@ void cmd_rx_callback(struct spi_s_async_descriptor *spi)
 {
   uint8_t rxbyte;
 
-  ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful
-  ringbuffer_put(&rb_cmd, rxbyte);
+  for(;;)
+  {
+    if (ERR_NONE != ringbuffer_get(&spi->rx_rb, &rxbyte))
+    {
+      break;
+    }
+
+    // Our ring buffer is bigger than the one in the HAL
+    ringbuffer_put(&rb_cmd, rxbyte);
+  }
 }
 
 
@@ -96,8 +106,16 @@ void rsp_rx_callback(struct spi_s_async_descriptor *spi)
 {
   uint8_t rxbyte;
 
-  ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful
-  ringbuffer_put(&rb_rsp, rxbyte);
+  for(;;)
+  {
+    if (ERR_NONE != ringbuffer_get(&spi->rx_rb, &rxbyte))
+    {
+      break;
+    }
+
+    // Our ring buffer is bigger than the one in the HAL
+    ringbuffer_put(&rb_rsp, rxbyte);
+  }
 }
 
 
@@ -105,88 +123,38 @@ void rsp_rx_callback(struct spi_s_async_descriptor *spi)
 // L3 mode IRQ handler; this is called when the L3MODE pin changes
 void l3mode_callback(void)
 {
-  l3mode = gpio_get_pin_level(L3MODE);
-
-  // Is this the start of a new sequence?
-  if ((!l3mode) && ((!pl3buf) || (pl3buf->len)))
-  {
-    // Do we already have a buffer?
-    if (pl3buf)
-    {
-      // If we overran the buffers, wait patiently until the next buffer
-      // is freed by the reader
-      if (pl3buf->ready)
-      {
-        return;
-      }
-      
-      // Check if the buffer has an address and data.
-      if (pl3buf->rsp) // Only nonzero if at least one data byte seen
-      {
-        // Mark the buffer as finished so the reader will know it can start
-        // parsing it.
-        pl3buf->ready = true;
-
-        // Switch to the next buffer
-        if ((pl3buf - l3buf) < ARRAY_SIZE(l3buf) - 1)
-        {
-          pl3buf++;
-        }
-        else
-        {
-          pl3buf = &l3buf[0];
-        }
-      }
-      else
-      {
-        // The current buffer doesn't have any data in it -- the L3MODE must
-        // have gone HIGH, then LOW again. Continue writing to the same
-        // buffer
-        return;
-      }
-    }
-    else
-    {
-      pl3buf = &l3buf[0];
-    }
-
-    // We now moved to a new buffer. Check if it's free.
-    if (pl3buf->ready)
-    {
-      // The read code hasn't been here yet.
-      l3overrun++;
-    }
-  }
-
-  // TODO: Read SPI data register using _spi_s_async_read_one to sync the shift register?
+  l3mode = (uint8_t)gpio_get_pin_level(L3MODE);
 }
 
 
 //---------------------------------------------------------------------------
 void l3spi_callback(struct spi_s_async_descriptor *spi)
 {
-  // Make sure we have a buffer first. The buffer pointer is not assigned
-  // until the L3MODE line goes low.
-  // Also don't add bytes to a buffer that was already finished; that's an
-  // overrun which is dealt with by the L3MODE interrupt handler.
-  if (pl3buf && !pl3buf->ready)
+  uint8_t rxbyte;
+  
+  // Put one byte for the L3 mode (as sampled when it last changed),
+  // followed by the incoming byte.
+  // Using an interrupt for the mode avoids a race condition that would
+  // happen if we sample the mode here: In the (unlikely) event that the
+  // MCU changes the mode immediately after sending or receiving the last
+  // byte, sampling it here could potentially let us pick up the state
+  // AFTER the MCU changed it.
+
+  ringbuffer_get(&spi->rx_rb, &rxbyte);
+  
+  if (ringbuffer_num(&rb_l3) < sizeof(rbl3buf) - 4)
   {
-    // Make sure there is space
-    if (pl3buf->len < ARRAY_SIZE(pl3buf->buf))
+    // Start recording on the first address byte
+    if (l3sync || !l3mode)
     {
-      uint8_t rxbyte;
-
-      ringbuffer_get(&spi->rx_rb, &rxbyte); // always successful or we wouldn't be here
-
-      // If this is the first data (not address) byte, set the index
-      if (l3mode && !pl3buf->rsp)
-      {
-        pl3buf->rsp = pl3buf->len;
-      }
-
-      // Store the byte
-      pl3buf->buf[pl3buf->len++] = rxbyte;
+      ringbuffer_put(&rb_l3, l3mode);
+      ringbuffer_put(&rb_l3, rxbyte);
+      l3sync = true;
     }
+  }
+  else
+  {
+    l3overflow++;
   }
 }
 
@@ -213,6 +181,8 @@ void reinit(void)
   spi_s_async_enable(&SPI_EXT2);
 
   // L3 bus
+
+  ringbuffer_init(&rb_l3, rbl3buf, sizeof(rbl3buf));
 
   ext_irq_register(L3MODE, l3mode_callback);
   ext_irq_enable(L3MODE);
@@ -1134,24 +1104,50 @@ void dol3command(buf_t *pbuf)
 // Parse command and response for the L3 bus
 void capturel3()
 {
-  static uint index;
-  buf_t *pbuf = &l3buf[index];
-
-  if (l3overrun)
+  if (ringbuffer_num(&rb_l3) >= 2)
   {
-    printf("L3 bus overrun %u\r\n", l3overrun);
-    l3overrun = 0;
-  }
+    uint8_t mode;
+    uint8_t rxbyte;
 
-  if (pbuf->ready)
-  {
-    dol3command(pbuf);
+    ringbuffer_get(&rb_l3, &mode);
+    ringbuffer_get(&rb_l3, &rxbyte);
 
-    pbuf->len = pbuf->rsp = 0;
-    pbuf->ready = false;
-    if (++index >= ARRAY_SIZE(l3buf))
+    // If the new byte is an address and the buffer already has data, so
+    // process the buffer.
+    if (!mode && l3buf.rsp)
     {
-      index = 0;
+      dol3command(&l3buf);
+
+      // Clear the buffer for the next byte
+      l3buf.len = 0;
+      l3buf.rsp = 0;
+    }
+
+    // Store the byte in the buffer if there's space
+    if (l3buf.len < sizeof(l3buf.buf))
+    {
+      l3buf.buf[l3buf.len] = rxbyte;
+
+      if (mode && !l3buf.rsp)
+      {
+        l3buf.rsp = l3buf.len;
+      }
+
+      l3buf.len++;
+    }
+    else
+    {
+      printf("***** L3 internal buffer overflow\r\n");
+    }
+  }
+  else
+  {
+    // The buffer is empty. Did we have an overflow?
+    if (l3overflow)
+    {
+      printf("***** L3 receive overflow: %u\r\n", l3overflow);
+      l3sync = false;
+      l3overflow = 0;
     }
   }
 }
@@ -1162,7 +1158,7 @@ int main(void)
 {
   reinit();
 
-  printf("\r\nFront panel monitor running\r\n");
+  printf("\r\nRunning\r\n");
 
   for(;;)
   {
