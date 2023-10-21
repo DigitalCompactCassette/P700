@@ -25,50 +25,116 @@ See LICENSE file for details.
 
 
 /////////////////////////////////////////////////////////////////////////////
+// DATA
+/////////////////////////////////////////////////////////////////////////////
+
+
+FT_HANDLE rx1 = NULL;
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
 
 
 //---------------------------------------------------------------------------
 // Initialize SPI receiver
-bool SPIrx_init()
+bool SPIrx_init(const char **argv)
 {
   FT_STATUS ftStatus = 0;
 
+  // Find out how many devices there are
   DWORD numOfDevices = 0;
   ftStatus = FT_CreateDeviceInfoList(&numOfDevices);
+  if (!numOfDevices)
+  {
+    printf("No devices found\n");
+    return false;
+  }
 
+  // Parse the command line
+  DWORD reqLoc = 0;
+  DWORD reqIndex = numOfDevices;
+  if (argv[1])
+  {
+    char *s;
+    reqLoc = strtoul(argv[1], &s, 16);
+    if (*s)
+    {
+      printf("Invalid Location ID %s (expected hex number)", argv[1]);
+      reqLoc = numOfDevices;
+    }
+  }
+
+  // Either print the entire list of devices or find the selected device
   for (DWORD iDev = 0; iDev < numOfDevices; ++iDev)
   {
-    FT_DEVICE_LIST_INFO_NODE devInfo;
-    memset(&devInfo, 0, sizeof(devInfo));
+    FT_DEVICE_LIST_INFO_NODE devInfo = { 0 };
 
-    ftStatus = FT_GetDeviceInfoDetail(iDev, &devInfo.Flags, &devInfo.Type, &devInfo.ID, &devInfo.LocId,
+    ftStatus = FT_GetDeviceInfoDetail(
+      iDev,
+      &devInfo.Flags,
+      &devInfo.Type,
+      &devInfo.ID,
+      &devInfo.LocId,
       devInfo.SerialNumber,
       devInfo.Description,
       &devInfo.ftHandle);
 
     if (FT_OK == ftStatus)
     {
-      printf("Dev %d:\n", iDev);
-      printf("  Flags= 0x%x, (%s)\n", devInfo.Flags, ":-)"/*DeviceFlagToString(devInfo.Flags).c_str()*/);
-      printf("  Type= 0x%x\n", devInfo.Type);
-      printf("  ID= 0x%x\n", devInfo.ID);
-      printf("  LocId= 0x%x\n", devInfo.LocId);
-      printf("  SerialNumber= %s\n", devInfo.SerialNumber);
-      printf("  Description= %s\n", devInfo.Description);
-      printf("  ftHandle= 0x%p\n", devInfo.ftHandle);
-
-      const std::string desc = devInfo.Description;
-//      g_FTAllDevList.push_back(devInfo);
-
-      if (desc == "FT4222" || desc == "FT4222 A")
+      if (reqLoc == 0 || reqLoc == devInfo.LocId)
       {
-//        g_FT4222DevList.push_back(devInfo);
+        printf("Dev %d:\n", iDev);
+        printf("  Flags= 0x%x\n", devInfo.Flags);
+        printf("  Type= 0x%x\n", devInfo.Type);
+        printf("  ID= 0x%x\n", devInfo.ID);
+        printf("  LocId= 0x%x\n", devInfo.LocId);
+        printf("  SerialNumber= %s\n", devInfo.SerialNumber);
+        printf("  Description= %s\n", devInfo.Description);
+        printf("  ftHandle= 0x%p\n", devInfo.ftHandle);
+
+        if (reqLoc == devInfo.LocId)
+        {
+          printf("Opening...\n");
+          reqIndex = iDev;
+        }
       }
     }
   }
 
+  // If we didn't find the requested device, bail out
+  if (reqIndex == numOfDevices)
+  {
+    if (reqLoc == 0)
+    {
+      printf("Select a receiver device by putting a hex location ID on the command line\n");
+    }
+    else
+    {
+      printf("Location 0x%X is invalid\n", reqLoc);
+    }
+
+    return false;
+  }
+
+  // Open the selected device
+  ftStatus = FT_Open(reqIndex, &rx1);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u opening device", ftStatus);
+    return false;
+  }
+
+  // Set up for SPI slave mode
+  ftStatus = FT4222_SPISlave_InitEx(rx1, SPI_SLAVE_NO_PROTOCOL);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u opening setting device to SPI slave mode", ftStatus);
+    return false;
+  }
+
+  // Done
   return true;
 }
 

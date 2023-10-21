@@ -16,7 +16,8 @@ See LICENSE for details.
 
 //---------------------------------------------------------------------------
 // Initialize SPI receiver
-bool SPIrx_init();
+bool SPIrx_init(                        // Returns true=success
+  const char **argv);                   // Program arguments
 
 
 /////////////////////////////////////////////////////////////////////////////

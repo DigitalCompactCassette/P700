@@ -81,7 +81,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)extern\lib\$(Configuration)\$(Platform);$(SolutionDir)extern\lib\Release\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)extern\bin\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\bin\Release\$(LibrariesArchitecture);$(SolutionDir)extern\lib\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\lib\Release\$(LibrariesArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -99,7 +99,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)extern\lib\$(Configuration)\$(Platform);$(SolutionDir)extern\lib\Release\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)extern\bin\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\bin\Release\$(LibrariesArchitecture);$(SolutionDir)extern\lib\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\lib\Release\$(LibrariesArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -113,7 +113,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)extern\lib\$(Configuration)\$(Platform);$(SolutionDir)extern\lib\Release\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)extern\bin\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\bin\Release\$(LibrariesArchitecture);$(SolutionDir)extern\lib\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\lib\Release\$(LibrariesArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -131,7 +131,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)extern\lib\$(Configuration)\$(Platform);$(SolutionDir)extern\lib\Release\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)extern\bin\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\bin\Release\$(LibrariesArchitecture);$(SolutionDir)extern\lib\$(Configuration)\$(LibrariesArchitecture);$(SolutionDir)extern\lib\Release\$(LibrariesArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -140,6 +140,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SPIrx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="extern\bin\Release\x86\LibFT4222.dll">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="extern\bin\Release\x64\LibFT4222.dll">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </CopyFileToFolders>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -27,4 +27,8 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="extern\bin\Release\x86\LibFT4222.dll" />
+    <CopyFileToFolders Include="extern\bin\Release\x64\LibFT4222.dll" />
+  </ItemGroup>
 </Project>

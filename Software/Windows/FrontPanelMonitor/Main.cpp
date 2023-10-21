@@ -26,7 +26,7 @@ See LICENSE for details.
 // Main program
 int main(int argc, char const **argv)
 {
-  if (!SPIrx_init())
+  if (!SPIrx_init(argv))
   {
     fprintf(stderr, "Error initializing SPI receiver");
     return 1;
