@@ -126,6 +126,15 @@ bool SPIrx_init(const char **argv)
     return false;
   }
 
+/* This shouldn't be necessary
+  ftStatus = FT4222_SetClock(ftHandle, SYS_CLK_80);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u setting clock to 80MHz\n", ftStatus);
+    return false;
+  }
+*/
+
   // Set up for SPI slave mode
   ftStatus = FT4222_SPISlave_InitEx(rx1, SPI_SLAVE_NO_PROTOCOL);
   if (FT_OK != ftStatus)
@@ -134,7 +143,24 @@ bool SPIrx_init(const char **argv)
     return false;
   }
 
+  // Set driving strength of the pins
+  ftStatus = FT4222_SPI_SetDrivingStrength(rx1, DS_4MA, DS_4MA, DS_4MA);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u setting SPI Slave driving strength\n", ftStatus);
+    return false;
+  }
+
+  // Set receive buffer size
+  ftStatus = FT_SetUSBParameters(rx1, 4 * 1024, 0);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u setting receive buffer size\n", ftStatus);
+    return false;
+  }
+
   // Done
+  printf("Location 0x%X opened successfully", reqLoc);
   return true;
 }
 
