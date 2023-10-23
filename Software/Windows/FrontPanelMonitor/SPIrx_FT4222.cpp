@@ -39,7 +39,8 @@ FT_HANDLE rx1 = NULL;
 
 //---------------------------------------------------------------------------
 // Initialize SPI receiver
-bool SPIrx_init(const char **argv)
+bool SPIrx_init(                        // Returns true=success
+  const char **argv)                    // Program arguments
 {
   FT_STATUS ftStatus = 0;
 
@@ -61,7 +62,7 @@ bool SPIrx_init(const char **argv)
     reqLoc = strtoul(argv[1], &s, 16);
     if (*s)
     {
-      printf("Invalid Location ID %s (expected hex number)", argv[1]);
+      printf("Invalid Location ID %s (expected hex number)\n", argv[1]);
       reqLoc = numOfDevices;
     }
   }
@@ -122,7 +123,7 @@ bool SPIrx_init(const char **argv)
   ftStatus = FT_Open(reqIndex, &rx1);
   if (FT_OK != ftStatus)
   {
-    printf("Error %u opening device", ftStatus);
+    printf("Error %u opening device\n", ftStatus);
     return false;
   }
 
@@ -139,7 +140,7 @@ bool SPIrx_init(const char **argv)
   ftStatus = FT4222_SPISlave_InitEx(rx1, SPI_SLAVE_NO_PROTOCOL);
   if (FT_OK != ftStatus)
   {
-    printf("Error %u opening setting device to SPI slave mode", ftStatus);
+    printf("Error %u opening setting device to SPI slave mode\n", ftStatus);
     return false;
   }
 
@@ -160,7 +161,59 @@ bool SPIrx_init(const char **argv)
   }
 
   // Done
-  printf("Location 0x%X opened successfully", reqLoc);
+  printf("Location 0x%X opened successfully\n", reqLoc);
+  return true;
+}
+
+
+//---------------------------------------------------------------------------
+// Shutdown SPI receiver
+void SPIrx_exit()
+{
+  FT4222_UnInitialize(rx1);
+  FT_Close(rx1);
+}
+
+
+//---------------------------------------------------------------------------
+// Receive data
+bool SPIrx_Receive(                     // Returns true=success
+  BYTE *buffer,                         // Receive buffer
+  WORD *pbufsize)                     // Input buf size, output rcvd bytes
+{
+  if (!buffer || !pbufsize || !*pbufsize)
+  {
+    printf("Need buffer and size\n");
+    return false;
+  }
+
+  uint16 rxSize;
+  FT_STATUS ftStatus = FT4222_SPISlave_GetRxStatus(rx1, &rxSize);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u getting receive status\n", ftStatus);
+    return false;
+  }
+
+  if (!rxSize)
+  {
+    *pbufsize = 0;
+  }
+  else
+  {
+    if (rxSize > *pbufsize)
+    {
+      rxSize = *pbufsize;
+    }
+
+    ftStatus = FT4222_SPISlave_Read(rx1, buffer, rxSize, pbufsize);
+    if (FT_OK != ftStatus)
+    {
+      printf("Error %u receiving data\n", ftStatus);
+      return false;
+    }
+  }
+
   return true;
 }
 
