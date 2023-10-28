@@ -144,6 +144,14 @@ bool SPIrx_init(                        // Returns true=success
     return false;
   }
 
+  // Set mode
+  ftStatus = FT4222_SPISlave_SetMode(rx1, CLK_IDLE_HIGH, CLK_LEADING);
+  if (FT_OK != ftStatus)
+  {
+    printf("Error %u setting SPI slave clock mode\n", ftStatus);
+    return false;
+  }
+
   // Set driving strength of the pins
   ftStatus = FT4222_SPI_SetDrivingStrength(rx1, DS_4MA, DS_4MA, DS_4MA);
   if (FT_OK != ftStatus)
