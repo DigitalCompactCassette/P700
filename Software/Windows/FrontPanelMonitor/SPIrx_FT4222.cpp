@@ -54,6 +54,35 @@ public:
       return false;
     }
 
+    // Reset the chip, in case the shift registers are in the wrong state
+    ftStatus = FT4222_ChipReset(rx1);
+    if (FT_OK != ftStatus)
+    {
+      printf("Error %u resetting chip\n", ftStatus);
+      return false;
+    }
+
+    FT_Close(rx1);
+    rx1 = NULL;
+    Sleep(1000);
+
+    // Open the selected device
+    reopen:
+    ftStatus = FT_Open(reqIndex, &rx1);
+    if (FT_OK != ftStatus)
+    {
+      printf("Error %u reopening device\n", ftStatus);
+      goto reopen;// return false;
+    }
+
+    // Not sure if this is necessary
+    ftStatus = FT4222_SetClock(rx1, SYS_CLK_80);
+    if (FT_OK != ftStatus)
+    {
+      printf("Error %u setting clock to 80MHz\n", ftStatus);
+      return false;
+    }
+
     // Set up for SPI slave mode
     ftStatus = FT4222_SPISlave_InitEx(rx1, SPI_SLAVE_NO_PROTOCOL);
     if (FT_OK != ftStatus)
@@ -62,9 +91,8 @@ public:
       return false;
     }
 
-    // Assume the clock is idle high, and the data should be sampled at the
-    // leading edge of the clock
-    ftStatus = FT4222_SPISlave_SetMode(rx1, CLK_IDLE_HIGH, CLK_LEADING);
+    // Set up for SPI mode 3
+    ftStatus = FT4222_SPISlave_SetMode(rx1, CLK_IDLE_HIGH, CLK_TRAILING);
     if (FT_OK != ftStatus)
     {
       printf("Error %u setting SPI slave clock mode\n", ftStatus);
@@ -98,6 +126,7 @@ public:
   {
     FT4222_UnInitialize(rx1);
     FT_Close(rx1);
+    rx1 = NULL;
   }
 
 

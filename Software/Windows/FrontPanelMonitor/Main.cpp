@@ -73,7 +73,7 @@ int main(int argc, char const **argv)
       }
       else
       {
-        Sleep(10);
+         Sleep(10);
       }
     }
     else
