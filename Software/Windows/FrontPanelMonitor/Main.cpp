@@ -60,7 +60,7 @@ int main(int argc, char const **argv)
 
     WORD len = (WORD)sizeof(rxbuf);
 
-    if (SPIrx_Receive(rxbuf, &len))
+    if (SPIrx_Receive(0, rxbuf, &len))
     {
       if (len)
       {
