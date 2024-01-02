@@ -15,6 +15,7 @@ See LICENSE for details.
 #include <cstdio>
 
 #include "SPIrx.h"
+#include "Dump.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -70,6 +71,8 @@ int main(int argc, char const **argv)
   const char *fmtCommand = (numReceivers > 1) ? "\x1B[31;1m" : "";
   const char *fmtResponse = (numReceivers > 1) ? "\x1B[32;1m" : "";
   const char *fmtDefault = (numReceivers > 1) ? "\x1B[0m" : "";
+
+  bool screencleared = false;
 
   for (;;)
   {
@@ -161,12 +164,17 @@ int main(int argc, char const **argv)
     // If we have an entire command and response, process the buffer
     if (bufLen && ((numReceivers == 1) || (nextCmdStart < bufLen)))
     {
+
       // Dump the buffer
       if (nextCmdStart)
       {
+        ProcessCommandResponse(rxbuf[0], resStart, rxbuf[1] + resStart, nextCmdStart - resStart);
+/*
         unsigned byteindex;
 
-        printf("%s", fmtCommand);
+        printf("%s%s", (screencleared ? "" : "\x1B[2J\x1B[0;0f"), fmtCommand);
+        screencleared = true;
+
         for (byteindex = 0; byteindex < resStart; byteindex++)
         {
           printf("%02X ", rxbuf[0][byteindex]);
@@ -179,6 +187,7 @@ int main(int argc, char const **argv)
         }
 
         printf("%s\n", fmtDefault);
+*/
       }
 
       // Remove all processed data from the buffers

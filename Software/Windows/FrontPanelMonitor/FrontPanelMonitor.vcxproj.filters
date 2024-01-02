@@ -21,9 +21,15 @@
     <ClCompile Include="Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Dump_Seq.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SPIrx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dump.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
