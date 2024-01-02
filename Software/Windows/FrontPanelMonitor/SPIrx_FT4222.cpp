@@ -344,7 +344,7 @@ SPIrx_init(
 
   printf("%u device(s) opened\n", result);
 
-  return true;
+  return result;
 }
 
 
