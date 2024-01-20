@@ -135,12 +135,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Dump_Seq.cpp" />
+    <ClCompile Include="Proc_Dump.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="SPIrx_FT4222.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Dump.h" />
+    <ClInclude Include="Proc.h" />
     <ClInclude Include="SPIrx.h" />
   </ItemGroup>
   <ItemGroup>

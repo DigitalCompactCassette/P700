@@ -15,7 +15,7 @@ See LICENSE for details.
 #include <cstdio>
 #include <cstdint>
 
-#include "Dump.h"
+#include "Proc.h"
 
 
 /////////////////////////////////////////////////////////////////////////////

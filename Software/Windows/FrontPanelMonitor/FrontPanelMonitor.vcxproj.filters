@@ -21,7 +21,7 @@
     <ClCompile Include="Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Dump_Seq.cpp">
+    <ClCompile Include="Proc_Dump.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,7 +29,7 @@
     <ClInclude Include="SPIrx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Dump.h">
+    <ClInclude Include="Proc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
