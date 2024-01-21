@@ -1,5 +1,5 @@
 /****************************************************************************
-Processing module using scrolling text
+Processing module using the screen
 (C) 2024 Jac Goudsmit
 Licensed under the MIT license.
 See LICENSE for details.
@@ -19,84 +19,123 @@ See LICENSE for details.
 
 
 /////////////////////////////////////////////////////////////////////////////
-// DATA
-/////////////////////////////////////////////////////////////////////////////
-
-
-static bool chattymode = true;
-
-
-/////////////////////////////////////////////////////////////////////////////
 // LOCAL FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
 
 
-//---------------------------------------------------------------------------
-// Print a string
-void static printstring(
-  const uint8_t *begin,
-  const uint8_t *end)
+void ShowVU(
+  BYTE *levels)                         // 2 bytes of VU levels
 {
-  putc('\"', stdout);
-
-  for (const uint8_t *s = begin; s != end; s++)
+  // Lookup table to generate the number of segments to light up on a
+  // 40-segment dBFS scale meter based on the absolute segment value
+  // (0=full scale, 97=quietest)
+  static const unsigned dblut40[] =
   {
-    printf((((*s < 32) || (*s >= 0x7E)) ? "\\x%02X" : "%c"), *s);
-  }
+    40, // 0 dB
+    39,
+    38,
+    37,
+    36,
+    35, // -5 dB
+    34,
+    33,
+    32,
+    31,
+    30, // -10 dB
+    29,
+    28,
+    27,
+    26,
+    25, // -15 dB
+    24,
+    23,
+    22,
+    21,
+    20, // -20 dB
+    19,
+    18,
+    18,
+    17,
+    16, // -25 dB
+    15,
+    14,
+    13,
+    12,
+    12, // -30 dB
+    11,
+    11,
+    10,
+    9,
+    9, // -35 dB
+    8,
+    7,
+    7,
+    6,
+    6, // -40 dB
+    5,
+    5,
+    5,
+    4,
+    4, // -45 dB
+    4,
+    3,
+    3,
+    3,
+    3, // -50 dB
+    2,
+    2,
+    2,
+    2,
+    2, // -55dB
+    2,
+    2,
+    2,
+    2,
+    2, // -60dB
+    1,
+    1,
+    1,
+    1,
+    1, // -65 dB
+    1,
+    1,
+    1,
+    1,
+    1, // -70 dB
+    1,
+    1,
+    1,
+    1,
+    1, // -75 dB
+    1,
+    1,
+    1,
+    1,
+    1, // -80 dB
+    1,
+    1,
+    1,
+    1,
+    1, // -85 dB
+    1,
+    1,
+    1,
+    1,
+    1, // -90 dB
+    1,
+    1,
+    1,
+    1,
+    0, // -95 dB
+  };
+  const char vu[] = "========================================";
+  const char bl[] = "                                        ";
 
-  putc('\"', stdout);
-}
-
-
-//---------------------------------------------------------------------------
-// Print hex data
-void static printhex(
-  const uint8_t *begin,
-  const uint8_t *end)
-{
-  for (const uint8_t *s = begin; s != end; s++)
+  for (int i = 0; i < 2; i++)
   {
-    static const char hex[] = "0123456789ABCDEF";
-
-    fputc(hex[*s >> 4], stdout);
-    fputc(hex[*s & 0xF], stdout);
-    fputc(' ', stdout);
+    unsigned u = levels[i] < 95 ? dblut40[levels[i]] : 0;
+    printf("\x1B[%d;1H%s%s", i + 1, &vu[40 - u], &bl[u]);
   }
-}
-
-
-//---------------------------------------------------------------------------
-// Print VU
-//
-// VU values are from 0 to 95 and represent the negative dB value of the
-// audio channel: 0 is the loudest (0dB), 95 is the quietest (-95dB).
-inline const char *vustring(
-  uint8_t vu)
-{
-  const char *vubar = "================";
-  const unsigned vu_limit = 45;
-
-  if (vu > vu_limit)
-  {
-    vu = vu_limit;
-  }
-
-  return vubar + (((unsigned)vu * 16) / (vu_limit + 1));
-}
-
-
-//---------------------------------------------------------------------------
-// Hexdump a command and response
-void static hexdumpmessage(
-  uint8_t *cmd,
-  size_t cmdlen,
-  uint8_t *rsp,
-  size_t rsplen)
-{
-  printhex(cmd, cmd + cmdlen); // Command
-  fputs("-- ", stdout);
-  printhex(rsp, rsp + rsplen); // Response
-  fputs("\r\n", stdout);
 }
 
 
@@ -121,12 +160,13 @@ void ProcessCommandResponse(
   switch (*cmd)
   {
     // Shortcuts
-#define P(name) printf("%02X %s", cmd[0], name)
-#define QCR(name, wantedcmdlen, wantedrsplen) do { P(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) goto dump; } while(0)
-#define QC(name, wantedcmdlen) QCR(name, wantedcmdlen, 1) // Command with parameters, no return data
-#define QR(name, wantedrsplen) QCR(name, 1, wantedrsplen) // Command without parameters, has return data
-#define Q(name) QCR(name, 1, 1); do { fputs("\r\n", stdout); return; } while(0) // Command with no parameters, no return data
+// #define P(name) printf("%02X %s", cmd[0], name)
+// #define QCR(name, wantedcmdlen, wantedrsplen) do { P(name); if ((cmdlen != wantedcmdlen) || (rsplen != wantedrsplen) || (rsp[0] != 0)) goto dump; } while(0)
+// #define QC(name, wantedcmdlen) QCR(name, wantedcmdlen, 1) // Command with parameters, no return data
+// #define QR(name, wantedrsplen) QCR(name, 1, wantedrsplen) // Command without parameters, has return data
+// #define Q(name) QCR(name, 1, 1); do { fputs("\r\n", stdout); return; } while(0) // Command with no parameters, no return data
 
+#if 0
   case 0x02: Q("DECK: STOP");
   case 0x03: Q("DECK: PLAY");
   case 0x05: Q("DECK: FFWD");
@@ -594,24 +634,12 @@ void ProcessCommandResponse(
     printf("%d\r\n", rsp[1]);           return;
 
     return;
-
+#endif
   case 0x5E:
-    // VU meters, 2 bytes between 00-5F. 5F (95 decimal) is silence.
-    // Values are negative decibels for left and right.
-    if (chattymode)
-    {
-      // Cursor off
-      fputs("\x1B[?25l", stdout);
-      QR("VU -> ", 3);
-
-      // No line feed so the text window doesn't scroll
-      printf("%16s %-16s\r", vustring(rsp[1]), vustring(rsp[2]));
-      // Cursor on
-      fputs("\x1B[?25h", stdout);
-    }
+    ShowVU(&rsp[1]);
 
     return;
-
+#if 0
   case 0x5F:
     // Service mode playback error reporting.
     // The command parameter byte indicates the requested track (1-9)
@@ -668,16 +696,18 @@ void ProcessCommandResponse(
       rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
 
     return;
-
+#endif
   default:
     ;// Nothing
   }
 
+/*
 dump:
   // If we got here, we don't understand the command. Just dump it.
   // Note, we don't dump the checksums.
   fputs("?? ", stdout);
   hexdumpmessage(cmd, cmdlen, rsp, rsplen);
+*/
 }
 
 
