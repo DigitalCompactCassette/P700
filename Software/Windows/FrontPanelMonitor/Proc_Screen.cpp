@@ -11,11 +11,34 @@ See LICENSE for details.
 /////////////////////////////////////////////////////////////////////////////
 
 
-#include <windows.h>
-#include <cstdio>
+#include <iostream>
 #include <cstdint>
+#include <windows.h>
 
 #include "Proc.h"
+
+using namespace std;
+
+
+/////////////////////////////////////////////////////////////////////////////
+// MACROS
+/////////////////////////////////////////////////////////////////////////////
+
+
+// Virtual Terminal Sequences
+#define CSI "\x1B["                     // Control Sequence Introducer
+#define CUPY(y) CSI << y << "H"         // Cursor Position (Y only)(1=top)
+#define CUP(y, x) CSI << y << ";" << x << "H"
+                                        // Cursor Position (X/Y)(1=top/left)
+
+
+#define PRE_VU(ch) CUPY(1 + ch)
+#define PRE_DECKSTATE CUPY(3)
+#define PRE_DECKFUNCTION CUPY(4)
+#define PRE_POLLSTATUS CUPY(5) // 3 lines
+#define PRE_DRAWERSTATUS CUPY(8)
+#define PRE_TRACKTITLE CUPY(9)
+#define PRE_LONGTEXT(y) CUPY(10 + y) // 5 lines
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -23,8 +46,34 @@ See LICENSE for details.
 /////////////////////////////////////////////////////////////////////////////
 
 
+//---------------------------------------------------------------------------
+// Print a string
+void static printstring(
+  const uint8_t *begin,
+  const uint8_t *end)
+{
+  putc('\"', stdout);
+
+  for (const uint8_t *s = begin; s != end; s++)
+  {
+    printf((((*s < 32) || (*s >= 0x7E)) ? "\\x%02X" : "%c"), *s);
+  }
+
+  putc('\"', stdout);
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x5E: Show VU meters
+//
+// Data:
+// [0] = error code (0=ok)
+// [1] = left channel VU meter value
+// [2] = right channel VU meter value
+//
+// Values are absolute dB values, i.e. 0=loudest, 95=silence
 void ShowVU(
-  BYTE *levels)                         // 2 bytes of VU levels
+  uint8_t *rsp)                         // Response data
 {
   // Lookup table to generate the number of segments to light up on a
   // 40-segment dBFS scale meter based on the absolute segment value
@@ -133,9 +182,212 @@ void ShowVU(
 
   for (int i = 0; i < 2; i++)
   {
-    unsigned u = levels[i] < 95 ? dblut40[levels[i]] : 0;
-    printf("\x1B[%d;1H%s%s", i + 1, &vu[40 - u], &bl[u]);
+    unsigned level = rsp[i + 1];
+    unsigned u = level < 95 ? dblut40[level] : 0;
+    cout << PRE_VU(i) << &vu[40 - u] << &bl[u];
   }
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x60: Show deck controller state
+//
+// Data:
+// [0] Error code (0=ok)
+// [1] Status? 8=play?
+// [2] Track number
+// [3] hours (negative is indicated in a weird way, I forgot how)
+// [4] minutes
+// [5] seconds
+// [6] unknown
+// [7] tape counter, high part
+// [8] tape counter, low part
+// [9] unknown
+//
+// All values are in big-endian BCD, e.g. 0x59 should be displayed as "59".
+void ShowDeckState(
+  BYTE *rsp)                            // Response data
+{
+  cout << PRE_DECKSTATE;
+  printf("T%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]",
+    rsp[2], rsp[3] & 0xF, rsp[4], rsp[5], rsp[7], rsp[8],
+    rsp[1], rsp[3] >> 4, rsp[6], rsp[9]);
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x58: Show deck function
+//
+// Data
+// [0] Error code (0=ok)
+// [1] Deck function, see below
+//
+// Deck functions are:
+// 0x01=Stand by
+// 0x02=Stop
+// 0x03=Read
+// 0x04=Play
+//
+// 0x0A=Fast forward
+// 0x0B=Rewind
+//
+// 0x0E=Unknown (seen during Append)
+// 
+// 0x11=Skip Forward
+// 0x12=Skip Backwards
+//
+// 0x15=Arriving at track, going backwards
+// 0x16=Arriving at track, going forwards
+//
+// 0x19=Unknown (seen during Append)
+// 
+// 0x22=Unknown (seen while recording title)
+// 0x23=Unknown (seen while recording title)
+// 0x24=Unknown (seen while recording title)
+// 0x26=Unknown (seen while recording title)
+// 
+// 0x2A=End of recording marker found
+// 0x2B=Ready for recording? Seen during Rec/Pause
+//
+// 0x30=Skipping intro (lead in)
+//
+// 0x32=Unknown (seen during Append)
+// 
+// 0x34=Unknown (seen during Append)
+void ShowDeckFunction(
+  BYTE *rsp)                            // Response data
+{
+  cout << PRE_DECKFUNCTION;
+
+  switch (rsp[1])
+  {
+  case 0x01: printf("OFF ");        return; // Stand by
+  case 0x02: printf("STOP");        return; // Stop
+  case 0x03: printf("READ");        return; // Reading
+  case 0x04: printf("PLAY");        return; // Play
+
+  case 0x0A: printf("FFWD");        return; // FFWD (sector)
+  case 0x0B: printf("REWD");        return; // Rewind (sector)
+
+  case 0x11: printf("NEXT");        return; // Search forwards
+  case 0x12: printf("PREV");        return; // Search backwards
+
+  case 0x15: printf("SBY<");        return; // Search arriving at track
+  case 0x16: printf("SBY>");        return; // Search arriving at track
+
+  case 0x2A: printf("END ");        return; // End of recording marker found
+
+  case 0x30: printf("SKIP");        return; // Skipping intro
+
+  case 0x22:
+  case 0x23:
+  case 0x24:
+  case 0x26: // All used when recording title
+
+  case 0x19:
+  case 0x0E:
+  case 0x32:
+  case 0x34: // Seen during APPEND
+
+  case 0x2B: // REC/PAUSE?
+
+  default:
+    printf("%02X\r\n", rsp[1]);         return; // TODO: decode other codes
+  }
+
+  return;
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x41: Show poll status
+void ShowPollStatus(
+  uint8_t *rsp)                         // Response data
+{
+  cout << PRE_POLLSTATUS;
+
+  // Interpret bits
+  uint8_t a = rsp[1];
+  cout << ((a & 0x01) ? "SYSTEM " : "       "); // System (issue Get System State)
+  cout << ((a & 0x02) ? "COUNTER " : "        "); // Counter update (issue Get Deck State)
+  cout << ((a & 0x04) ? "TIME ": "     "); // Time update (issue Get Deck State)
+  cout << ((a & 0x08) ? "FUNCTION ": "         "); // Function change? (issue Get Function State)
+  cout << ((a & 0x10) ? "DRAWER ": "       "); // Drawer change (issue Get Drawer State)
+  cout << ((a & 0x20) ? "EOT ": "    "); // End of Tape (sector)
+  cout << ((a & 0x40) ? "BOT ": "    "); // Beginning of Tape (sector)
+  cout << ((a & 0x80) ? "FAST ": "     "); // Winding/rewinding without heads applied; time is deck time?
+
+  cout << endl;
+  a = rsp[2];
+  cout << ((a & 0x01) ? "LYRICS ": "       "); // Lyrics (issue Get DCC Long Text)
+  cout << ((a & 0x02) ? "MARKER ": "       "); // Marker change (issue Get Marker)
+  cout << ((a & 0x04) ? "(B4) ": "     "); // unknown
+  cout << ((a & 0x08) ? "(B8) ": "     "); // unknown
+  cout << ((a & 0x10) ? "(B10) ": "      "); // unknown
+  cout << ((a & 0x20) ? "TRACK ": "      "); // Track info available? Seen when playing past track marker
+  cout << ((a & 0x40) ? "ABSTIME ": "        "); // Absolute time known (SUDCC/PDCC)?
+  cout << ((a & 0x80) ? "TOTALTIME ": "          "); // Total time known on PDCC? FP issues PREREC TAPE TIME
+
+  cout << endl;
+  a = rsp[3];
+  cout << ((a & 0x80) ? "DECKTIME ": "         "); // No absolute tape time, using deck time?
+  cout << ((a & 0x40) ? "TAPETIME ": "         "); // Using tape time code
+  
+  cout << "Sector=" << (a & 3);
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x46: Get drawer status
+void ShowDrawerStatus(
+  uint8_t *rsp)
+{
+  cout << PRE_DRAWERSTATUS << "Drawer ";
+
+  switch (rsp[1])
+  {
+  case 1: printf("Closed ");        return;
+  case 2: printf("Open   ");        return;
+  case 3: printf("Closing");        return;
+  case 4: printf("Opening");        return;
+  case 5: printf("Blocked");        return;
+  default:
+          printf("Unknown");        return;
+  }
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x51: Show Long Text
+void ShowLongText(
+  uint8_t *cmd,
+  uint8_t *rsp,
+  size_t rsplen)
+{
+  switch (cmd[1])
+  {
+  case 0xFA: cout << PRE_LONGTEXT(0) << "Track           -> "; break; // Get track name?
+  case 0xE0: cout << PRE_LONGTEXT(1) << "TOC track name? -> "; break; // Not sure; Used when rewinding sudcc to beginning, but returns error
+  case 0x01: cout << PRE_LONGTEXT(2) << "Lyrics / Album? -> "; break; // Possibly language number for lyrics?
+  case 0x03: cout << PRE_LONGTEXT(3) << "Artist          -> "; break; // Album artist on PDCC
+  default:   cout << PRE_LONGTEXT(4) << cmd[1] << " -> ";
+  }
+
+  printstring(rsp + 1, rsp + rsplen);
+}
+
+
+//---------------------------------------------------------------------------
+// Command 0x52: Get Track Title
+void ShowTrackTitle(
+  uint8_t *cmd,
+  uint8_t *rsp,
+  size_t rsplen)
+{
+  cout << PRE_TRACKTITLE;
+
+  printf("Track %2u -> ", cmd[1]);
+  printstring(rsp + 1, rsp + rsplen);
 }
 
 
@@ -152,6 +404,17 @@ void ProcessCommandResponse(
   BYTE *rsp,
   size_t rsplen)
 {
+  {
+    static bool screencleared = false;
+
+    if (!screencleared)
+    {
+      // 2J=clear screen, H=home, ?25l=cursor off
+      printf("\x1B[2J\x1B[H\x1B[?25l");
+      screencleared = true;
+    }
+  }
+
   if (cmd) *cmd &= 0x7F;
   if (rsp) *rsp &= 0x7F;
   if (cmdlen) cmdlen--;
@@ -357,60 +620,13 @@ void ProcessCommandResponse(
     // Write DCC. This is issued after setting the text for the current track
     Q("WRITE DCC.");
 
+#endif
   case 0x41:
     // Poll status
-    // This is generated often and is very chatty.
-    // We cache it and only show it when it changes.
-  {
-    static uint8_t status[4] = { 0 };
+    ShowPollStatus(rsp);
+    break;
 
-    if ((cmdlen == 1) && (rsplen == sizeof(status)))
-    {
-      if ((status[0] != rsp[0])
-        || ((status[1] & 0xF9) != (rsp[1] & 0xF9)) // Those bits change too often while running. Tachos?
-        || (status[2] != rsp[2])
-        || (status[3] != rsp[3]))
-      {
-        P("POLL -> from=");
-        printhex(status, status + sizeof(status));
-        fputs("to=", stdout);
-        printhex(rsp, rsp + rsplen);
-
-        // Interpret bits
-        if (rsp[1] & 0x01) fputs("SYSTEM ", stdout); // System (issue Get System State)
-        //if (rsp[1] & 0x02) fputs("(A2) ",       stdout); // ignored; toggles too fast.
-        //if (rsp[1] & 0x04) fputs("(A4) ",       stdout); // ignored; toggles too fast
-        if (rsp[1] & 0x08) fputs("FUNCTION ", stdout); // Function change? (issue Get Function State)
-        if (rsp[1] & 0x10) fputs("DRAWER ", stdout); // Drawer change (issue Get Drawer State)
-        if (rsp[1] & 0x20) fputs("EOT ", stdout); // End of Tape (sector)
-        if (rsp[1] & 0x40) fputs("BOT ", stdout); // Beginning of Tape (sector)
-        if (rsp[1] & 0x80) fputs("FAST ", stdout); // Winding/rewinding without heads applied; time is deck time?
-
-        if (rsp[2] & 0x01) fputs("LYRICS ", stdout); // Lyrics (issue Get DCC Long Text)
-        if (rsp[2] & 0x02) fputs("MARKER ", stdout); // Marker change (issue Get Marker)
-        if (rsp[2] & 0x04) fputs("(B4) ", stdout);
-        if (rsp[2] & 0x08) fputs("(B8) ", stdout);
-        if (rsp[2] & 0x10) fputs("(B10) ", stdout);
-        if (rsp[2] & 0x20) fputs("TRACK ", stdout); // Track info available? Seen when playing past track marker
-        if (rsp[2] & 0x40) fputs("ABSTIME ", stdout); // Absolute time known (SUDCC/PDCC)?
-        if (rsp[2] & 0x80) fputs("TOTALTIME ", stdout); // Total time known on PDCC? FP issues PREREC TAPE TIME
-
-        if (rsp[3] & 0x80) fputs("DECKTIME ", stdout); // No absolute tape time, using deck time?
-        if (rsp[3] & 0x40) fputs("TAPETIME ", stdout); // Using tape time code
-        printf("Sector=%u\r\n", rsp[3] & 3);
-
-        memcpy(status, rsp, sizeof(status));
-      }
-      else
-      {
-        // Nothing changed; don't print anything
-      }
-
-      return;
-    }
-  }
-  break;
-
+#if 0
   case 0x44:
     QR("GET SYSTEM STATUS -> ", 2);
 
@@ -426,23 +642,14 @@ void ProcessCommandResponse(
       printf("%02X\r\n", rsp[1]);           return;
     }
 
+#endif
+
   case 0x46:
     // Get drawer status
-    QR("GET DRAWER STATUS -> ", 2);
-
-    switch (rsp[1])
-    {
-    case 1: printf("Closed\r\n");         return;
-    case 2: printf("Open\r\n");           return;
-    case 3: printf("Closing\r\n");        return;
-    case 4: printf("Opening\r\n");        return;
-    case 5: printf("Blocked\r\n");        return;
-    case 6: printf("Unknown\r\n");        return;
-    default:
-      ; // Nothing
-    }
-
+    ShowDrawerStatus(rsp);
     break;
+
+#if 0
 
   case 0x49:
     // Get tape type? This is issued right after the drawer finishes closing
@@ -495,34 +702,19 @@ void ProcessCommandResponse(
 
     break;
 
+#endif
+
   case 0x51:
-    // Get long text
-    QCR("GET LONG TEXT: ", 2, 41);
-
-    switch (cmd[1])
-    {
-    case 0xFA: printf("Track -> ");                 break; // Get track name?
-    case 0xE0: printf("TOC track name -> ");        break; // Not sure; Used when rewinding sudcc to beginning, but returns error
-    case 0x01: printf("Lyrics / Album Title -> ");  break; // Possibly language number for lyrics?
-    case 0x03: printf("Artist -> ");                break; // Album artist on PDCC
-    default:   printf("%02X -> ", cmd[1]);
-    }
-
-    printstring(rsp + 1, rsp + rsplen);
-    fputs("\r\n", stdout);
-
+    // Get long text (invoked when you push the Text button on the front panel)
+    ShowLongText(cmd, rsp, rsplen);
     return;
 
   case 0x52:
     // Get track title
-    QCR("GET TRACK TITLE: ", 2, 41);
-
-    printf("Track %u -> ", cmd[1]);
-    printstring(rsp + 1, rsp + rsplen);
-    fputs("\r\n", stdout);
-
+    ShowTrackTitle(cmd, rsp, rsplen);
     return;
 
+#if 0
   case 0x53:
     // Get short text
     QCR("GET SHORT TEXT -> ", 2, 13);
@@ -576,50 +768,13 @@ void ProcessCommandResponse(
     }
 
     return;
+#endif
 
   case 0x58:
-    // Get Function State. This is apparently used to update the symbols
-    // on the front panel display
-    QR("FUNCTION STATE -> ", 2);
-
-    switch (rsp[1])
-    {
-    case 0x01: printf("OFF \r\n");        return; // Stand by
-    case 0x02: printf("STOP\r\n");        return; // Stop
-    case 0x03: printf("READ\r\n");        return; // Reading
-    case 0x04: printf("PLAY\r\n");        return; // Play
-
-    case 0x0A: printf("FFWD\r\n");        return; // FFWD (sector)
-    case 0x0B: printf("REWD\r\n");        return; // Rewind (sector)
-
-    case 0x11: printf("NEXT\r\n");        return; // Search forwards
-    case 0x12: printf("PREV\r\n");        return; // Search backwards
-
-    case 0x15: printf("SBY<\r\n");        return; // Search arriving at track
-    case 0x16: printf("SBY>\r\n");        return; // Search arriving at track
-
-    case 0x2A: printf("END \r\n");        return; // End of recording marker found
-
-    case 0x30: printf("SKIP\r\n");        return; // Skipping intro
-
-    case 0x22:
-    case 0x23:
-    case 0x24:
-    case 0x26: // All used when recording title
-
-    case 0x19:
-    case 0x0E:
-    case 0x32:
-    case 0x34: // Seen during APPEND
-
-    case 0x2B: // REC/PAUSE?
-
-    default:
-      printf("%02X\r\n", rsp[1]);         return; // TODO: decode other codes
-    }
-
+    ShowDeckFunction(rsp);
     return;
 
+#if 0
   case 0x5B:
     // Set something (at search time). cmdlen=2 rsplen=4
     break;
@@ -636,9 +791,9 @@ void ProcessCommandResponse(
     return;
 #endif
   case 0x5E:
-    ShowVU(&rsp[1]);
-
+    ShowVU(rsp);
     return;
+
 #if 0
   case 0x5F:
     // Service mode playback error reporting.
@@ -656,38 +811,12 @@ void ProcessCommandResponse(
     printf("%02X -> %02X %02X\r\n", cmd[1], rsp[0], rsp[1]);
 
     return;
-
+#endif
   case 0x60:
-    // Get Time (and state?) from deck controller. All values in BCD, big endian.
-    // byte 0=error 00=ok
-    // byte 1=status, 8=play?
-    // byte 2=track
-    // byte 3/4/5=time in BCD, hh/mm/ss. Negative is indicated in hours-byte; don't remember how :)
-    // byte 6=?
-    // byte 7/8=tape counter, 0-9999 
-    // byte 9=?
-  {
-    static uint8_t track;
+    ShowDeckState(rsp);
+    return;
 
-    if ((chattymode) || (rsp[2] != track))
-    {
-      // Cursor off
-      fputs("\x1B[?25l", stdout);
-      P("Time -> ");
-      //printf("Track %02X Time %X:%02X:%02X Counter %02X%02X [1/2=%02X%X 6=%02X 9=%02X]\r\n", 
-      //printf("                                T%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r", 
-      // ESC [ <n> C is cursor forward by n places
-      printf("\x1B[32CT%02X %X:%02X:%02X C%02X%02X [%02X %X %02X %02X]\r",
-        rsp[2], rsp[3] & 0xF, rsp[4], rsp[5], rsp[7], rsp[8],
-        rsp[1], rsp[3] >> 4, rsp[6], rsp[9]);
-      // Cursor on
-      fputs("\x1B[?25h", stdout);
-
-      track = rsp[2];
-    }
-  }
-  return;
-
+#if 0
   case 0x61:
     // Get tape info for prerecorded tape
     QR("PREREC TAPE INFO -> ", 6);
